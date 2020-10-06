@@ -23,7 +23,7 @@ public class DiscordClient extends RadioClient {
 	private final File homeDirectory;
 	private ZenithRadio radio;
 	private JDA api;
-	private DiscordProperties properties;
+	private final DiscordProperties properties;
 	
 	private List< AudioRecord > searchList = new ArrayList< AudioRecord >();
 	
