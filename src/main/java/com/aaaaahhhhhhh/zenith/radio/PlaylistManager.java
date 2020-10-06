@@ -4,6 +4,9 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -139,36 +142,43 @@ public class PlaylistManager {
 	
 	private void load() {
 		if ( directory.exists() ) {
-			for ( File file : directory.listFiles() ) {
-				if ( !file.isDirectory() && file.getName().endsWith( "m3u8" ) ) {
-					// Read the file and load them in
-					PlaylistProvider provider = new PlaylistProvider();
-					
-					try ( Scanner scanner = new Scanner( file ) ){
-						while ( scanner.hasNextLine() ) {
-							String data = scanner.nextLine();
-							if ( !data.startsWith( "#" ) ) {
-								File audioFile = new File( data );
-								
-								AudioRecord record = radio.getCache().getRecord( audioFile );
-								if ( record == null ) {
-									record = new AudioRecord( audioFile );
-									record.update();
+			Path dirPath = directory.toPath();
+			try {
+				DirectoryStream< Path > dirStream = Files.newDirectoryStream( dirPath );
+				for ( Path subPath : dirStream ) {
+					File file = subPath.toFile();
+					if ( !file.isDirectory() && file.getName().endsWith( "m3u8" ) ) {
+						// Read the file and load them in
+						PlaylistProvider provider = new PlaylistProvider();
+
+						try ( Scanner scanner = new Scanner( file ) ){
+							while ( scanner.hasNextLine() ) {
+								String data = scanner.nextLine();
+								if ( !data.startsWith( "#" ) ) {
+									File audioFile = new File( data );
+
+									AudioRecord record = radio.getCache().getRecord( audioFile );
+									if ( record == null ) {
+										record = new AudioRecord( audioFile );
+										record.update();
+									}
+
+									provider.records.add( record );
 								}
-								
-								provider.records.add( record );
 							}
+						} catch ( FileNotFoundException e ) {
+							e.printStackTrace();
 						}
-					} catch ( FileNotFoundException e ) {
-						e.printStackTrace();
-					}
-					
-					if ( provider.available() ) {
-						String id = file.getName().replaceFirst( "\\.m3u8$", "" );
-						ZenithRadio.debug( "Registering playlist " + id );
-						register( id, provider );
+
+						if ( provider.available() ) {
+							String id = file.getName().replaceFirst( "\\.m3u8$", "" );
+							ZenithRadio.debug( "Registering playlist " + id );
+							register( id, provider );
+						}
 					}
 				}
+			} catch ( IOException e ) {
+				e.printStackTrace();
 			}
 			
 			PlaylistProvider provider = get( "blacklist" );

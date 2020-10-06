@@ -18,6 +18,7 @@ import com.aaaaahhhhhhh.zenith.radio.file.MusicCacheIO;
 import com.aaaaahhhhhhh.zenith.radio.shout.IceMount;
 import com.aaaaahhhhhhh.zenith.radio.shout.MusicPlayer;
 
+import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.support.eventmanager.TaskExecutor;
 
 public class ZenithRadio {
@@ -29,7 +30,14 @@ public class ZenithRadio {
 		if ( radio.getMusicDirectory() == null ) {
 			System.out.println( "The music directory is not set!" );
 			System.exit( 1 );
+		} else if ( !radio.getMusicDirectory().exists() ) {
+			System.out.println( "The music directory does not exist!" );
+			System.exit( 2 );
 		}
+
+		System.out.println( "Looking for a VLC installation..." );
+		MediaPlayerFactory factory = new MediaPlayerFactory();
+		factory.release();
 		
 		System.out.println( "Starting Zenith Radio..." );
 		radio.init();

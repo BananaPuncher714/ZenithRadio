@@ -1,6 +1,10 @@
 package com.aaaaahhhhhhh.zenith.radio.file;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -50,30 +54,38 @@ public class DirectoryRecord extends FileRecord {
 			}
 		}
 
-		for ( File subItem : file.listFiles() ) {
-			String path = subItem.getAbsolutePath();
-
-			// Ignore hidden files
-			if ( subItem.getName().startsWith( "." ) ) {
-				continue;
-			}
-
-			if ( !subRecords.containsKey( path ) ) {
-				if ( subItem.isDirectory() ) {
-					DirectoryRecord newRecord = new DirectoryRecord( subItem, validator );
-
-					cache.merge( newRecord.updateDirectory() );
-					
-					subRecords.put( path, newRecord );
-				} else if ( validator.isValidFile( subItem ) ) {
-					AudioRecord newRecord = new AudioRecord( subItem );
-					newRecord.update();
-
-					cache.added.add( newRecord );
-
-					subRecords.put( path, newRecord );
+		Path filePath = file.toPath();
+		try {
+			DirectoryStream< Path > dirStream = Files.newDirectoryStream( filePath );
+		
+			for ( Path subPath: dirStream ) {
+				File subItem = subPath.toFile();
+				String path = subItem.getAbsolutePath();
+	
+				// Ignore hidden files
+				if ( subItem.getName().startsWith( "." ) ) {
+					continue;
+				}
+	
+				if ( !subRecords.containsKey( path ) ) {
+					if ( subItem.isDirectory() ) {
+						DirectoryRecord newRecord = new DirectoryRecord( subItem, validator );
+	
+						cache.merge( newRecord.updateDirectory() );
+						
+						subRecords.put( path, newRecord );
+					} else if ( validator.isValidFile( subItem ) ) {
+						AudioRecord newRecord = new AudioRecord( subItem );
+						newRecord.update();
+	
+						cache.added.add( newRecord );
+	
+						subRecords.put( path, newRecord );
+					}
 				}
 			}
+		} catch ( IOException e ) {
+			e.printStackTrace();
 		}
 		
 		return cache;

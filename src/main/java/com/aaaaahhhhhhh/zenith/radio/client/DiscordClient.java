@@ -1,6 +1,10 @@
 package com.aaaaahhhhhhh.zenith.radio.client;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -76,11 +80,20 @@ public class DiscordClient extends RadioClient {
 			File folder = properties.getWebmFolder();
 			if ( folder != null ) {
 				List< File > webms = new ArrayList< File >();
-				for ( File file : folder.listFiles() ) {
-					if ( !file.isDirectory() ) {
-						webms.add( file );
+				
+				Path filePath = folder.toPath();
+				try {
+					DirectoryStream< Path > dirStream = Files.newDirectoryStream( filePath );
+					for ( Path subPath: dirStream ) {
+						File file = subPath.toFile();
+						if ( !file.isDirectory() ) {
+							webms.add( file );
+						}
 					}
+				} catch ( IOException e ) {
+					e.printStackTrace();
 				}
+				
 				
 				if ( !webms.isEmpty() ) {
 					File file = webms.get( ThreadLocalRandom.current().nextInt( webms.size() ) );
