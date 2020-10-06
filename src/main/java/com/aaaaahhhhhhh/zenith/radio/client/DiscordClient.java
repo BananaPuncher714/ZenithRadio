@@ -169,9 +169,9 @@ public class DiscordClient extends RadioClient {
 				channel.sendMessage( "Searching..." ).queue();
 				searchList.clear();
 				for ( AudioRecord record : radio.getMediaApi().getRecords() ) {
-					if ( record.getTitle().toLowerCase().contains( key ) ||
-							record.getAlbum().toLowerCase().contains( key ) ||
-							record.getArtist().toLowerCase().contains( key ) ) {
+					if ( record.getTitle().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ||
+							record.getAlbum().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ||
+							record.getArtist().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ) {
 						searchList.add( record );
 					}
 				}
