@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
+import com.aaaaahhhhhhh.zenith.radio.file.DirectoryRecord.UpdateCache;
 import com.aaaaahhhhhhh.zenith.radio.media.MetadataGenerator;
 
 public class RadioMedia {
@@ -53,6 +54,13 @@ public class RadioMedia {
 			radio.getPlayer().refill();
 		}
 		lock.unlock();
+	}
+	
+	public UpdateCache refresh() {
+		lock.lock();
+		UpdateCache cache = radio.getCache().forceUpdate();
+		lock.unlock();
+		return cache;
 	}
 	
 	public boolean enqueue( AudioRecord record, boolean skip ) {
