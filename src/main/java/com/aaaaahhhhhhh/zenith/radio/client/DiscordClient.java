@@ -13,7 +13,7 @@ import javax.security.auth.login.LoginException;
 
 import com.aaaaahhhhhhh.zenith.radio.ZenithRadio;
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
-import com.aaaaahhhhhhh.zenith.radio.file.DirectoryRecord.UpdateCache;
+import com.aaaaahhhhhhh.zenith.radio.Commands.*;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
@@ -29,7 +29,9 @@ public class DiscordClient extends RadioClient {
 	private ZenithRadio radio;
 	private JDA api;
 	private final DiscordProperties properties;
-	
+	Command[] commands;
+
+
 	private List< AudioRecord > searchList = new ArrayList< AudioRecord >();
 	
 	public DiscordClient( File baseDir ) {
@@ -37,6 +39,7 @@ public class DiscordClient extends RadioClient {
 		homeDirectory.mkdirs();
 		File configFile = new File( homeDirectory, "config.properties" );
 		this.properties = new DiscordProperties( configFile );
+
 
 		String token = properties.getToken();
 		if ( !token.isEmpty() ) {
@@ -53,6 +56,27 @@ public class DiscordClient extends RadioClient {
 		} else {
 			ZenithRadio.debug( "Unable to find a bot token!" );
 		}
+
+		initCommands();
+	}
+
+	private void initCommands(){
+		Search search = new Search(this);
+		commands = new Command[]{
+				new Next(this),
+				new Drama(this),
+				new Info(this),
+				new Play(this, search),
+				new Playlist(this),
+				new Refresh(this),
+				search,
+				new Shuffle(this),
+				new Stop(this),
+				new Time(this),
+				new Addall(this, search)
+		};
+
+
 	}
 	
 	@Override
@@ -123,243 +147,38 @@ public class DiscordClient extends RadioClient {
 			if ( channel == null ) {
 				message.getChannel().sendMessage( "SUFFERING" ).queue();;
 			} else if ( channel.getIdLong() == event.getChannel().getIdLong() ) {
-				onCommand( channel, content.substring( 1 ), isAdmin );
+				onCommand( channel, content.substring( 1 ).toLowerCase(), isAdmin );
 			}
 		}
 	}
 	
 	private void onCommand( MessageChannel channel, String command, boolean admin ) {
 		ZenithRadio radio = this.radio;
-		if ( command.equalsIgnoreCase( "next" ) || command.equalsIgnoreCase( "skip" ) ) {
-			channel.sendMessage( "Skipping..." ).queue();
-			radio.getControlsApi().playNext();
-		} else if ( command.equalsIgnoreCase( "shuffle" ) ) {
-			channel.sendMessage( "Shuffling the current playlist..." ).queue();
-			radio.getMediaApi().refill();
-		} else if ( command.equalsIgnoreCase( "playlist" ) ) {
-			StringBuilder builder = new StringBuilder( "**__Current playlist:__**\n" );
-			List< AudioRecord > playlist = radio.getMediaApi().getPlaylist();
-			for ( int i = 0; i < playlist.size(); i++ ) {
-				AudioRecord record = playlist.get( i );
-				
-				String toAppend = "**" + ( i + 1 ) + ". ** " + record.getTitle();
-				
-				if ( builder.length() + toAppend.length() > 2000 ) {
-					channel.sendMessage( builder.toString() ).queue();
-					builder = new StringBuilder();
-				}
-				
-				builder.append( toAppend );
-				if ( i < playlist.size() - 1 ) {
-					builder.append( "\n" );
-				}
+		boolean success = false;
+		for (Command com : commands) {
+			if (com.isValidCommand(command)) {
+				success = true;
+				com.runCommand(channel, admin, command, radio);
 			}
-			
-			channel.sendMessage( builder.toString() ).queue();
-		} else if ( command.equalsIgnoreCase( "stop" ) ) {
-			if ( admin ) {
-				channel.sendMessage( "*I don't feel so good...*" ).queue();
-				radio.stop();
-			} else {
-				channel.sendMessage( "*I can't let you do that...*" ).queue();
-			}
-		} else if ( command.equalsIgnoreCase( "drama" ) ) {
-			channel.sendMessage( "What?! You don't want to listen to this?! I'm going to sue you for liable." ).queue();
-			AudioRecord playing = radio.getMediaApi().getPlaying();
-			radio.getPlaylistManager().getDefaultProvider().addToBlacklist( playing );
-			radio.getControlsApi().playNext();
-		} else if ( command.equalsIgnoreCase( "time" ) ) {
-			long time = radio.getControlsApi().getCurrentTime();
-			long length = radio.getControlsApi().getCurrentLength();
-			channel.sendMessage( "**__Current time:__** " + ZenithRadio.timeFormat( time ) + "/" + ZenithRadio.timeFormat( length ) ).queue();
-		} else if ( command.startsWith( "search " ) ) {
-			String key = command.substring( 7 ).toLowerCase().replaceAll( "\\s+", "" );
-			if ( key.length() > 2 ) {
-				channel.sendMessage( "Searching..." ).queue();
-				searchList.clear();
-				for ( AudioRecord record : radio.getMediaApi().getRecords() ) {
-					if ( record.getTitle().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ||
-							record.getAlbum().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ||
-							record.getArtist().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ) {
-						searchList.add( record );
-					}
-				}
-				
-				// TODO Use a treeset and make AudioRecords comparable or something
-				searchList.sort( ( a1, a2 ) -> {
-					String[] a1s = {
-							a1.getAlbum(),
-							a1.getDisc(),
-							a1.getTrack(),
-							a1.getTitle(),
-							a1.getArtist(),
-							a1.getFile().getAbsolutePath()
-					};
-					String[] a2s = {
-							a2.getAlbum(),
-							a2.getDisc(),
-							a2.getTrack(),
-							a2.getTitle(),
-							a2.getArtist(),
-							a2.getFile().getAbsolutePath()
-					};
-					
-					for ( int i = 0; i < a1s.length; i++ ) {
-						String a1str = a1s[ i ];
-						String a2str = a2s[ i ];
-						
-						try {
-							int int1 = Integer.parseInt( a1str );
-							int int2 = Integer.parseInt( a2str );
-							
-							if ( int1 > int2 ) {
-								return 1;
-							} else if ( int1 < int2 ) {
-								return -1;
-							}
-						} catch ( NumberFormatException e ) {
-							int res = a1str.compareTo( a2str );
-							if ( res != 0 ) {
-								return res;
-							}
-						}
-					}
-					
-					return 0;
-				} );
-				
-				if ( searchList.isEmpty() ) {
-					channel.sendMessage( "No matches found!" ).queue();
-				} else {
-					StringBuilder builder = new StringBuilder( "**__Matches(" + searchList.size() + "):__**\n" );
-					for ( int i = 0; i < Math.min( 100, searchList.size() ); i++ ) {
-						AudioRecord record = searchList.get( i );
-						String toAppend = "**" + ( i + 1 ) + "**" + " - " + record.getTrack() + ". " + record.getTitle() + " - **" + record.getAlbum() + "** // " + record.getArtist();
-						
-						// Split it into multiple messages
-						if ( builder.length() + toAppend.length() > 2000 ) {
-							channel.sendMessage( builder.toString() ).queue();
-							builder = new StringBuilder();
-						}
-						
-						builder.append( "**" + ( i + 1 ) + "**" + " - " + record.getTrack() + ". " + record.getTitle() + " - **" + record.getAlbum() + "** // " + record.getArtist() );
-						if ( i < searchList.size() - 1 ) {
-							builder.append( "\n" );
-						}
-					}
-					channel.sendMessage( builder.toString() ).queue();
-				}
-			} else {
-				channel.sendMessage( "You're going to have to do better than that." ).queue();
-			}
-		} else if ( command.startsWith( "play " ) || command.startsWith( "add " ) ) {
-			String[] data = command.split( "\\D+" );
-			StringBuilder builder = new StringBuilder();
-			for ( String v : data ) {
-				if ( !v.isEmpty() ) {
-					int index = Integer.valueOf( v ) - 1;
-					
-					if ( index < 0 || index >= searchList.size() ) {
-						builder.append( "**" + index + "** is *not* a valid selection.\n" );
-					} else {
-						AudioRecord record = searchList.get( index );
-						// TODO Refactor this so it doesn't break or look so bad
-						String toAppend = "Added **" + record.getTitle() + "** to the playlist.\n";
-						if ( builder.length() + toAppend.length() > 2000 ) {
-							channel.sendMessage( builder.toString() ).queue();
-							builder = new StringBuilder();
-						}
-						
-						builder.append( toAppend );
-						radio.getMediaApi().enqueue( record, false );
-					}
-				}
-			}
-			if ( builder.length() == 0 ) {
-				channel.sendMessage( "That's *not* a valid selection." ).queue();
-			} else {
-				channel.sendMessage( builder.toString() ).queue();
-			}
-		} else if ( command.matches( "addall" ) ) {
-			if ( searchList.isEmpty() ) {
-				channel.sendMessage( "There isn't anything to add!" ).queue();
-			} else {
-				StringBuilder builder = new StringBuilder();
-				for ( int i = 0; i < searchList.size(); i++ ) {
-					AudioRecord record = searchList.get( i );
-					String toAppend = "Added **" + record.getTitle() + "** to the playlist.";
 
-					if ( builder.length() + toAppend.length() > 2000 ) {
-						channel.sendMessage( builder.toString() ).queue();
-						builder = new StringBuilder();
-					}
-					
-					radio.getMediaApi().enqueue( record, false );
-					builder.append( toAppend );
-					if ( i < searchList.size() - 1 ) {
-						builder.append( "\n" );
-					}
-				}
-				channel.sendMessage( builder.toString() ).queue();
-			}
-		} else if ( command.matches( "refresh" ) ) {
-			channel.sendMessage( "Refreshing the music cache..." ).queue();
-			UpdateCache cache = radio.getMediaApi().refresh();
-			if ( cache.isUnchanged() ) {
-				channel.sendMessage( "No changes detected!" ).queue();
-			} else {
-				StringBuilder builder = new StringBuilder();
-				if ( !cache.getAdded().isEmpty() ) {
-					builder.append( "Added **" + cache.getAdded().size() + "** tracks\n" );
-				}
-				if ( !cache.getChanged().isEmpty() ) {
-					builder.append( "Updated **" + cache.getChanged().size() + "** tracks\n" );
-				}
-				if ( !cache.getRemoved().isEmpty() ) {
-					builder.append( "Removed **" + cache.getRemoved().size() + "** tracks\n" );
-				}
-				channel.sendMessage( builder.toString() ).queue();
-			}
-		} else if ( command.matches( "info" ) ) {
-			AudioRecord record = radio.getMediaApi().getPlaying();
-			
-			MessageBuilder builder = new MessageBuilder();
-			builder.append( "**__Now playing__**\n" );
-			builder.append( "Title: " + record.getTitle() + "\n" );
-			builder.append( "Album: " + ( record.getAlbum().isEmpty() ? "Unknown" : record.getAlbum() ) + "\n" );
-			builder.append( "Artist: " + ( record.getArtist().isEmpty() ? "Unknown" : record.getArtist() ) + "\n" );
-			builder.append( "Track: " );
-			if ( !record.getDisc().isEmpty() ) {
-				builder.append( record.getDisc() );
-				builder.append( "." );
-			}
-			builder.append( record.getTrack() + "\n" );
-			
-			String prefix = radio.getMusicDirectory().getAbsolutePath();
-			String recordFile = record.getFile().getAbsolutePath();
-			builder.append( "File: `" );
-			if ( recordFile.startsWith( prefix ) ) {
-				builder.append( recordFile.substring( prefix.length() ) );
-			} else {
-				builder.append( recordFile );
-			}
-			builder.append( "`\n" );
-			
-			long length = record.getFile().length();
-			
-			builder.append( "Size: " + humanReadableSize( length ) + "\n" );
-			
-			long time = radio.getControlsApi().getCurrentTime();
-			long totalTime = radio.getControlsApi().getCurrentLength();
-			builder.append( "Current time: " + ZenithRadio.timeFormat( time ) + "/" + ZenithRadio.timeFormat( totalTime ) );
-			
-			channel.sendMessage( builder.build() ).queue();
-		} else {
-			channel.sendMessage( "What? Sorry, I don't speak liberal." ).queue();
+		}
+		if(!success){
+				channel.sendMessage("What? Sorry, I don't speak liberal.").queue();
 		}
 	}
-	
-	private String humanReadableSize( long size ) {
+
+	public void sendMessage(String string, MessageChannel channel){
+		string = string + "\n";
+		int times = string.length()/2000;
+		int start = 0;
+		for (int i = 1; i<=times+1; i++){
+				int end = string.lastIndexOf("\n", start+2000);
+				channel.sendMessage(string.substring(start, end)).queue();
+				start =  end;
+		}
+	}
+
+	public String humanReadableSize( long size ) {
 		if ( size >= 1_000_000_000 ) {
 			return ( ( size / 1_000_000_00 ) / 10.0 ) + "GB";
 		} else if ( size >= 1_000_000 ) {
