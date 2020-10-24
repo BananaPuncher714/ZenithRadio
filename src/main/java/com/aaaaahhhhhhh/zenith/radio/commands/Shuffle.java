@@ -1,4 +1,4 @@
-package com.aaaaahhhhhhh.zenith.radio.Commands;
+package com.aaaaahhhhhhh.zenith.radio.commands;
 
 import com.aaaaahhhhhhh.zenith.radio.ZenithRadio;
 import com.aaaaahhhhhhh.zenith.radio.client.DiscordClient;
