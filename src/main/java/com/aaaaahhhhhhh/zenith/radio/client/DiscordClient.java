@@ -13,7 +13,7 @@ import javax.security.auth.login.LoginException;
 
 import com.aaaaahhhhhhh.zenith.radio.ZenithRadio;
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
-import com.aaaaahhhhhhh.zenith.radio.Commands.*;
+import com.aaaaahhhhhhh.zenith.radio.commands.*;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;

@@ -1,12 +1,8 @@
-package com.aaaaahhhhhhh.zenith.radio.Commands;
+package com.aaaaahhhhhhh.zenith.radio.commands;
 
 import com.aaaaahhhhhhh.zenith.radio.ZenithRadio;
 import com.aaaaahhhhhhh.zenith.radio.client.DiscordClient;
-import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
 import net.dv8tion.jda.api.entities.MessageChannel;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public abstract class Command {
     DiscordClient client;
