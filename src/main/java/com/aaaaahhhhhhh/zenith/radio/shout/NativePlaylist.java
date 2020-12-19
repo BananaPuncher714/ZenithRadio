@@ -55,10 +55,18 @@ public class NativePlaylist implements Playlist {
 		queue.remove( index );
 		
 		libvlc_media_list_lock( playlist );
-		boolean successful = libvlc_media_list_remove_index( playlist, index ) == 0;
+		int nativeSize = libvlc_media_list_count( playlist );
+		boolean successful = false;
+		if ( nativeSize > 0 ) {
+			successful = libvlc_media_list_remove_index( playlist, index ) == 0;
+		}
 		libvlc_media_list_unlock( playlist );
 		
 		lock.unlock();
+
+		if ( nativeSize == 0 ) {
+			throw new RuntimeException( "Tried to remove from an empty playlist!" );
+		}
 		
 		return successful;
 	}
@@ -137,8 +145,15 @@ public class NativePlaylist implements Playlist {
 	@Override
 	public int getSize() {
 		lock.lock();
+		libvlc_media_list_lock( playlist );
+		int nativeSize = libvlc_media_list_count( playlist );
+		libvlc_media_list_unlock( playlist );
 		int size = queue.size();
 		lock.unlock();
+		
+		if ( nativeSize != size ) {
+			throw new RuntimeException( String.format( "Sizes no longer in sync! Expected %u, got %u", size, nativeSize ) );
+		}
 		
 		return size;
 	}

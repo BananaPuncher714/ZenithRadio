@@ -5,9 +5,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.util.Base64;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
@@ -27,7 +25,6 @@ public class MusicPlayer {
 	private final Playlist playlist;
 	
 	private final ReentrantLock lock = new ReentrantLock();
-	private final Set< String > skipFill = new HashSet< String >();
 	private final int buffer;
 
 	private int position = -1;
@@ -91,7 +88,6 @@ public class MusicPlayer {
 			// Only play if the playlist isn't empty
 			if ( playlist.getSize() > 0 ) {
 				// Now change to the new item
-				skipFill.add( playlist.getMrl( 0 ) );
 				player.play( 0 );
 			} else {
 				// The playlist shouldn't ever be empty
@@ -282,6 +278,7 @@ public class MusicPlayer {
 				playlist.add( mediaProvider.provide() );
 			}
 		}
+
 		for ( int i = 0; i < position; i++ ) {
 			// It seems like even though everything is shifted forwards, the list player has its own internal index
 			// for keeping track of where it is in the playlist.
@@ -313,10 +310,12 @@ public class MusicPlayer {
 		}
 		queuePos = Math.max( queuePos - position, -1 );
 		
+		// Check if the player was playing something that's not the first track in the list
+		if ( position > 1 ) {
+			System.out.println( String.format( "Resetting the player position! Expected 0, got %u.", position - 1 ) );
+			player.play( 0 );
+		}
 		position = 0;
-		// Skip this next time the media callback gets changed, and force play position 0
-		skipFill.add( playlist.getMrl( 0 ) );
-		player.play( 0 );
 		
 		lock.unlock();
 	}
@@ -326,34 +325,29 @@ public class MusicPlayer {
 		// But so far nothing's broken...
 		
 		lock.lock();
-		boolean requiresFill = !skipFill.remove( newMrl );
-		lock.unlock();
+		position++;
+		fill();
 		
-		if ( requiresFill ) {
-			position++;
-			fill();
-		} else {
-			lock.lock();
-			AudioRecord file = playlist.get( position );
-			lock.unlock();
-			
-			if ( file.getFile().exists() ) {
-				// Callback before updating the metadata
-				if ( callback != null ) {
-					callback.onMusicPlayerUpdateEvent( file );
-				}
-				
-				ShoutMetadata metadata;
-				if ( generator != null ) {
-					metadata = generator.getMetadataFor( file );
-				} else {
-					metadata = defGenerator.getMetadataFor( file );
-				}
-				updateMetadata( mount, metadata );
-			} else {
-				// The file doesn't exist, so skip it
-				playNext();
+		AudioRecord file = playlist.get( position );
+		lock.unlock();
+
+		if ( file.getFile().exists() ) {
+			// Callback before updating the metadata
+			if ( callback != null ) {
+				callback.onMusicPlayerUpdateEvent( file );
 			}
+
+			ShoutMetadata metadata;
+			if ( generator != null ) {
+				metadata = generator.getMetadataFor( file );
+			} else {
+				metadata = defGenerator.getMetadataFor( file );
+			}
+			updateMetadata( mount, metadata );
+		} else {
+			// The file doesn't exist, so skip it
+			System.out.println( "Missing file!! " + file.getFile().getAbsolutePath() );
+			playNext();
 		}
 	}
 	
