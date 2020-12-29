@@ -267,55 +267,59 @@ public class MusicPlayer {
 		// Use a queue index for individually added songs
 		// Once position > queuePos then we know that we're done playing queued songs
 		lock.lock();
-		int needToAdd = Math.max( 0, ( buffer - playlist.getSize() ) + position );
-		for ( int i = 0; i < needToAdd; i++ ) {
-			AudioRecord record = mediaProvider.provide();
-			if ( record == null || !record.getFile().exists() ) {
-				record = defaultProvider.provide();
+		if ( position > 0 ) {
+			int needToAdd = Math.max( 0, ( buffer - playlist.getSize() ) + position );
+			for ( int i = 0; i < needToAdd; i++ ) {
+				AudioRecord record = mediaProvider.provide();
+				if ( record == null || !record.getFile().exists() ) {
+					record = defaultProvider.provide();
+				}
+				
+				if ( record != null ) {
+					playlist.add( mediaProvider.provide() );
+				}
 			}
+	
+			for ( int i = 0; i < position; i++ ) {
+				// It seems like even though everything is shifted forwards, the list player has its own internal index
+				// for keeping track of where it is in the playlist.
+				// This means that we can't actually change the position of the element, or we can force set the index
+				// But then, that causes another issue where the media position gets changed again
+				// So, we need a way to determine if the currently playing one is right or not
+				/*
+				 * The order is as follows
+				 * Play
+				 * Skip
+				 * CALLED
+				 * Play
+				 * Remove
+				 * Skip
+				 * CALLED
+				 * Play internal <- Error here
+				 * 
+				 * Play
+				 * Skip
+				 * CALLED
+				 * Play
+				 * Remove
+				 * Play 0
+				 * CALLED
+				 * 
+				 * 
+				 */
+				playlist.remove( 0 );
+			}
+			queuePos = Math.max( queuePos - position, -1 );
 			
-			if ( record != null ) {
-				playlist.add( mediaProvider.provide() );
+			// Check if the player was playing something that's not the first track in the list
+			if ( position > 1 ) {
+				System.out.println( String.format( "Resetting the player position! Expected 0, got %u.", position - 1 ) );
+				player.play( 0 );
+				position = -1;
+			} else {
+				position = 0;
 			}
 		}
-
-		for ( int i = 0; i < position; i++ ) {
-			// It seems like even though everything is shifted forwards, the list player has its own internal index
-			// for keeping track of where it is in the playlist.
-			// This means that we can't actually change the position of the element, or we can force set the index
-			// But then, that causes another issue where the media position gets changed again
-			// So, we need a way to determine if the currently playing one is right or not
-			/*
-			 * The order is as follows
-			 * Play
-			 * Skip
-			 * CALLED
-			 * Play
-			 * Remove
-			 * Skip
-			 * CALLED
-			 * Play internal <- Error here
-			 * 
-			 * Play
-			 * Skip
-			 * CALLED
-			 * Play
-			 * Remove
-			 * Play 0
-			 * CALLED
-			 * 
-			 * 
-			 */
-			playlist.remove( 0 );
-		}
-		queuePos = Math.max( queuePos - position, -1 );
-		
-		// Check if the player was playing something that's not the first track in the list
-		if ( position > 1 ) {
-			System.out.println( String.format( "Resetting the player position! Expected 0, got %u.", position - 1 ) );
-			player.play( 0 );
-		}
-		position = 0;
 		
 		lock.unlock();
 	}
@@ -329,7 +333,6 @@ public class MusicPlayer {
 		fill();
 		
 		AudioRecord file = playlist.get( position );
-		lock.unlock();
 
 		if ( file.getFile().exists() ) {
 			// Callback before updating the metadata
@@ -349,6 +352,7 @@ public class MusicPlayer {
 			System.out.println( "Missing file!! " + file.getFile().getAbsolutePath() );
 			playNext();
 		}
+		lock.unlock();
 	}
 	
 	private static boolean updateMetadata( IceMount mount, ShoutMetadata metadata ) {
