@@ -80,12 +80,54 @@ public class ConsoleClient extends RadioClient {
 							if ( key.length() > 2 ) {
 								searchList.clear();
 								for ( AudioRecord record : radio.getMediaApi().getRecords() ) {
-									if ( record.getTitle().toLowerCase().contains( key ) ||
-											record.getAlbum().toLowerCase().contains( key ) ||
-											record.getArtist().toLowerCase().contains( key ) ) {
+									if ( record.getTitle().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ||
+											record.getAlbum().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ||
+											record.getArtist().replaceAll( "\\s+", "" ).toLowerCase().contains( key ) ) {
 										searchList.add( record );
 									}
 								}
+
+								searchList.sort( ( a1, a2 ) -> {
+									String[] a1s = {
+											a1.getAlbum(),
+											a1.getDisc(),
+											a1.getTrack(),
+											a1.getTitle(),
+											a1.getArtist(),
+											a1.getFile().getAbsolutePath()
+									};
+									String[] a2s = {
+											a2.getAlbum(),
+											a2.getDisc(),
+											a2.getTrack(),
+											a2.getTitle(),
+											a2.getArtist(),
+											a2.getFile().getAbsolutePath()
+									};
+
+									for ( int i = 0; i < a1s.length; i++ ) {
+										String a1str = a1s[ i ];
+										String a2str = a2s[ i ];
+
+										try {
+											int int1 = Integer.parseInt( a1str );
+											int int2 = Integer.parseInt( a2str );
+
+											if ( int1 > int2 ) {
+												return 1;
+											} else if ( int1 < int2 ) {
+												return -1;
+											}
+										} catch ( NumberFormatException e ) {
+											int res = a1str.compareTo( a2str );
+											if ( res != 0 ) {
+												return res;
+											}
+										}
+									}
+
+									return 0;
+								} );
 								
 								if ( searchList.isEmpty() ) {
 									System.out.println( "No matches!" );

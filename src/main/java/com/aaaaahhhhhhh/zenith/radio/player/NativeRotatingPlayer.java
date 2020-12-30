@@ -32,7 +32,6 @@ import java.util.List;
 import com.aaaaahhhhhhh.zenith.radio.media.MediaChangedEventCallback;
 import com.aaaaahhhhhhh.zenith.radio.media.MediaPlayer;
 import com.aaaaahhhhhhh.zenith.radio.shout.IceMount;
-import com.aaaaahhhhhhh.zenith.radio.shout.NativePlaylist;
 import com.sun.jna.Pointer;
 import com.sun.jna.StringArray;
 
@@ -97,7 +96,16 @@ public class NativeRotatingPlayer implements MediaPlayer {
 							String mrl = NativeString.copyNativeString( libvlc_media_get_mrl( playing ) );
 							libvlc_media_release( playing );
 							
+							// Increment, remove and fill
+							playlist.lock();
+							// Only remove and fill if it changed tracks, not if it just started playing
+							int prevHead = playlist.getHead();
 							playlist.increment();
+							if ( prevHead != -1 ) {
+								playlist.remove( 0 );
+								playlist.fill();
+							}
+							playlist.unlock();
 							
 							callback.mediaChanged( mrl );
 						} );
@@ -139,14 +147,19 @@ public class NativeRotatingPlayer implements MediaPlayer {
 	@Override
 	public void play() {
 		paused = false;
+
+		// Reset and refill
+		playlist.lock();
 		playlist.resetPosition();
+		playlist.fill();
+		playlist.unlock();
+		
 		libvlc_media_list_player_play( player );
 	}
 	
 	@Override
 	public void stop() {
 		paused = false;
-		playlist.resetPosition();
 		libvlc_media_list_player_stop( player );
 	}
 	
@@ -169,7 +182,16 @@ public class NativeRotatingPlayer implements MediaPlayer {
 	public void play( int index ) {
 		paused = false;
 
-		playlist.clearAndRemove( index );
+		playlist.lock();
+		// Remove all items up to the index
+		for ( int i = 0; i < index; i++ ) {
+			playlist.remove( 0 );
+		}
+		
+		// Reset and refill
+		playlist.resetPosition();
+		playlist.fill();
+		playlist.unlock();
 		
 		libvlc_media_list_player_play_item_at_index( player, 0 );
 	}

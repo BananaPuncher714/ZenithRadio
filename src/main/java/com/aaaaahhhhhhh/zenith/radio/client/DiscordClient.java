@@ -31,9 +31,6 @@ public class DiscordClient extends RadioClient {
 	private final DiscordProperties properties;
 	Command[] commands;
 
-
-	private List< AudioRecord > searchList = new ArrayList< AudioRecord >();
-	
 	public DiscordClient( File baseDir ) {
 		homeDirectory = baseDir;
 		homeDirectory.mkdirs();

@@ -15,8 +15,8 @@ import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
 import com.aaaaahhhhhhh.zenith.radio.file.DirectoryRecord.UpdateCache;
 import com.aaaaahhhhhhh.zenith.radio.file.MusicCache;
 import com.aaaaahhhhhhh.zenith.radio.file.MusicCacheIO;
+import com.aaaaahhhhhhh.zenith.radio.player.MusicRotatingPlayer;
 import com.aaaaahhhhhhh.zenith.radio.shout.IceMount;
-import com.aaaaahhhhhhh.zenith.radio.shout.MusicPlayer;
 
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.support.eventmanager.TaskExecutor;
@@ -72,7 +72,7 @@ public class ZenithRadio {
 	private final File homeDirectory;
 	private File musicDirectory;
 	private IceMount mount;
-	private MusicPlayer player;
+	private MusicRotatingPlayer player;
 	private MusicCache cache;
 	private ZenithRadioProperties properties;
 	private PlaylistManager manager;
@@ -113,7 +113,7 @@ public class ZenithRadio {
 		return manager;
 	}
 	
-	protected MusicPlayer getPlayer() {
+	protected MusicRotatingPlayer getPlayer() {
 		return player;
 	}
 	
@@ -169,7 +169,7 @@ public class ZenithRadio {
 		debug( "Setting the IceMount's genre " );
 		mount = properties.getIceMount().setGenre( randomSplash() );
 		debug( "Creating a new music player" );
-		player = new MusicPlayer( mount, provider ).setCallback( this::playerCallback );
+		player = new MusicRotatingPlayer( mount, provider ).setCallback( this::playerCallback );
 		
 		// Set the current provider for the radio
 		player.setProvider( provider );

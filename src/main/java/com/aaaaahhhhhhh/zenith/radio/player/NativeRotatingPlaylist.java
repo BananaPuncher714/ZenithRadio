@@ -2,7 +2,6 @@ package com.aaaaahhhhhhh.zenith.radio.player;
 
 import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_add_option;
 import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_get_mrl;
-import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_list_add_media;
 import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_list_count;
 import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_list_insert_media;
 import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_list_item_at_index;
@@ -16,7 +15,6 @@ import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_new_location;
 import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_new_path;
 import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_media_release;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -40,7 +38,7 @@ public class NativeRotatingPlaylist implements Playlist {
 	// Lock for the queue
 	private final ReentrantLock lock = new ReentrantLock();
 	
-	private int currentIndex;
+	private int head;
 	private int tail;
 	private int size;
 	
@@ -48,8 +46,8 @@ public class NativeRotatingPlaylist implements Playlist {
 		this.mediaOption = option;
 		this.libvlcInstance = libvlcInstance;
 		this.size = size;
-		currentIndex = 0;
-		tail = 0;
+		head = -1;
+		tail = -1;
 		
 		// Create a new MediaList
 		playlist = libvlc_media_list_new( libvlcInstance );
@@ -57,34 +55,29 @@ public class NativeRotatingPlaylist implements Playlist {
 		libvlc_media_list_retain( playlist );
 	}
 	
-	public void increment() {
-		lock.lock();
-		// Increment the current player's position
-		currentIndex = ( currentIndex + 1 ) % size;
-		
-		fill();
-
-		lock.unlock();
+	protected void increment() {
+		// Increment the current player's head
+		head = ( head + 1 ) % size;
+	}
+	
+	protected int getHead() {
+		return head;
 	}
 	
 	public void resetPosition() {
 		lock.lock();
-		
-		currentIndex = 0;
-		tail = 0;
-		
-		fill();
-		
+		head = -1;
+		tail = -1;
 		lock.unlock();
 	}
 	
-	private void fill() {
-		lock.lock();
-		libvlc_media_list_lock( playlist );
-		
+	protected void fill() {
 		// Get the size of the native object
 		int nativeSize = libvlc_media_list_count( playlist );
-		int difference = ( nativeSize == 0 && currentIndex == tail ) ? size : ( size + ( currentIndex - ( tail + 1 ) ) ) % size;
+		// Get how many need to be filled
+		// If it's empty and the head == tail, then size
+		// Otherwise, get the head - ( tail + 1 ) mod size
+		int difference = ( head == -1 && tail == -1 ) ? size : ( size + ( head - ( tail + 1 ) ) ) % size;
 		int queued = size - difference;
 		
 		// Get how much we need to fill at most
@@ -94,16 +87,12 @@ public class NativeRotatingPlaylist implements Playlist {
 		int playlistSize = size - nativeSize;
 		
 		for ( int i = 0; i < fillAmount; i++ ) {
-			// Fill the thing
-			if ( nativeSize != 0 || currentIndex != tail ) {
-				tail = ( tail + 1 ) % size;
-			}
+			// Increase the tail count
+			tail = ( tail + 1 ) % size;
 
 			// We don't have any more space, so remove what's at the current position
-			if ( playlistSize <= 0 ) {
+			if ( playlistSize-- <= 0 ) {
 				libvlc_media_list_remove_index( playlist, tail );
-			} else {
-				playlistSize--;
 			}
 			
 			// Add the record
@@ -114,105 +103,48 @@ public class NativeRotatingPlaylist implements Playlist {
 			libvlc_media_add_option( media, mediaOption );
 			libvlc_media_list_insert_media( playlist, media, tail );
 		}
-		
-		libvlc_media_list_unlock( playlist );
-		lock.unlock();
 	}
-	
-	protected void clearAndRemove( int index ) {
-		lock.lock();
-		libvlc_media_list_lock( playlist );
-		
-		// Get the size
-		int nativeSize = libvlc_media_list_count( playlist );
-		// Clear the playlist
-		for ( int i = 0; i < nativeSize; i++ ) {
-			libvlc_media_list_remove_index( playlist, 0 );
-		}
-		
-		for ( int i = 0; i < index; i++ ) {
-			queue.remove( 0 );
-		}
-		
-		resetPosition();
-		
-		libvlc_media_list_unlock( playlist );
-		lock.unlock();
-	}
-	
+
 	@Override
 	public boolean remove( int index ) {
-		lock.lock();
-		libvlc_media_list_lock( playlist );
-		
-		int nativeSize = libvlc_media_list_count( playlist );
-		int difference = ( nativeSize == 0 && currentIndex == tail ) ? size : ( size + ( currentIndex - ( tail + 1 ) ) ) % size;
-		int queued = size - difference;
-		
 		queue.remove( index );
-		if ( queued > index ) {
-			tail = index + currentIndex;
-		}
-		
-		fill();
-		
-		if ( nativeSize == 0 ) {
-			throw new RuntimeException( "Tried to remove from an empty playlist!" );
-		}
-		
-		libvlc_media_list_unlock( playlist );
-		lock.unlock();
 		
 		return true;
 	}
 	
 	@Override
 	public boolean insert( int index, AudioRecord file ) {
-		lock.lock();
-		libvlc_media_list_lock( playlist );
-		
-		int nativeSize = libvlc_media_list_count( playlist );
-		int difference = ( nativeSize == 0 && currentIndex == tail ) ? size : ( size + ( currentIndex - ( tail + 1 ) ) ) % size;
-		int queued = size - difference;
-		
 		queue.add( index, file );
-		if ( queued > index ) {
-			tail = index + currentIndex;
+		
+		// TODO What? Does this even work properly?
+		if ( index < size && head != -1 ) {
+			// Check if the index or tail is smaller
+			int difference = ( size + ( tail - head ) ) % size;
+			if ( index <= difference ) {
+				// If so, then reset the tail
+				tail = ( index + head - 1 ) % size;
+			}
 		}
-		
-		fill();
-		
-		libvlc_media_list_unlock( playlist );
-		lock.unlock();
 		
 		return true;
 	}
 	
 	@Override
 	public boolean add( AudioRecord file ) {
-		lock.lock();
-		
 		queue.add( file );
 
-		fill();
-		
-		lock.unlock();
-		
 		return true;
 	}
 	
 	@Override
 	public AudioRecord get( int index ) {
-		lock.lock();
 		AudioRecord file = queue.get( index );
-		lock.unlock();
 		
 		return file;
 	}
 	
 	@Override
 	public String getMrl( int index ) {
-		lock.lock();
 		String mrl = queue.get( index ).getFile().getAbsolutePath();
 		
 //		libvlc_media_list_lock( playlist );
@@ -230,27 +162,22 @@ public class NativeRotatingPlaylist implements Playlist {
 	
 	@Override
 	public int getSize() {
-		lock.lock();
 //		libvlc_media_list_lock( playlist );
 //		int nativeSize = libvlc_media_list_count( playlist );
 //		libvlc_media_list_unlock( playlist );
 		int size = queue.size();
-		lock.unlock();
 		
 		return size;
 	}
 	
 	@Override
 	public List< AudioRecord > getQueue() {
-		lock.lock();
 		List< AudioRecord > copy = Collections.unmodifiableList( queue );
-		lock.unlock();
 		
 		return copy;
 	}
 	
-	private void debugOut() {
-		libvlc_media_list_lock( playlist );
+	void debugOut() {
 		int size = libvlc_media_list_count( playlist );
 		System.out.println( "Current size: " + size + " vs queue " + queue.size() );
         for (int i = 0; i < size; i++) {
@@ -258,7 +185,6 @@ public class NativeRotatingPlaylist implements Playlist {
             System.out.println( "Item is " + NativeString.copyNativeString( libvlc_media_get_mrl( item ) ) );
             libvlc_media_release(item);
         }
-        libvlc_media_list_unlock( playlist );
 	}
 	
 	public libvlc_media_list_t getNativeMediaList() {
@@ -268,5 +194,16 @@ public class NativeRotatingPlaylist implements Playlist {
 	@Override
 	public void release() {
 		libvlc_media_list_release( playlist );
+	}
+	
+	protected void lock() {
+		lock.lock();
+		libvlc_media_list_lock( playlist );
+		
+	}
+	
+	protected void unlock() {
+		libvlc_media_list_unlock( playlist );
+		lock.unlock();
 	}
 }
