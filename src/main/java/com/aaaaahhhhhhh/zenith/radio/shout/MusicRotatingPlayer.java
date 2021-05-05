@@ -10,24 +10,21 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
 import com.aaaaahhhhhhh.zenith.radio.media.DefaultMetadataGenerator;
-import com.aaaaahhhhhhh.zenith.radio.media.MediaPlayer;
 import com.aaaaahhhhhhh.zenith.radio.media.MediaProvider;
 import com.aaaaahhhhhhh.zenith.radio.media.MetadataGenerator;
 import com.aaaaahhhhhhh.zenith.radio.media.MusicPlayerUpdateCallback;
-import com.aaaaahhhhhhh.zenith.radio.media.Playlist;
 import com.aaaaahhhhhhh.zenith.radio.media.ShoutMetadata;
 
-public class MusicPlayer {
+public class MusicRotatingPlayer {
 	public static final int DEFAULT_BUFFER_SIZE = 10;
 	
 	private final IceMount mount;
-	private final MediaPlayer player;
-	private final Playlist playlist;
+	private final NativeRotatingPlayer player;
+	private final NativeRotatingPlaylist playlist;
 	
 	private final ReentrantLock lock = new ReentrantLock();
 	private final int buffer;
 
-	private int position = -1;
 	private int queuePos = -1;
 	private MetadataGenerator defGenerator;
 	
@@ -36,11 +33,11 @@ public class MusicPlayer {
 	private MusicPlayerUpdateCallback callback;
 	private MetadataGenerator generator;
 	
-	public MusicPlayer( IceMount mount, MediaProvider defProvider ) {
+	public MusicRotatingPlayer( IceMount mount, MediaProvider defProvider ) {
 		this( mount, defProvider, DEFAULT_BUFFER_SIZE );
 	}
 	
-	public MusicPlayer( IceMount mount, MediaProvider defProvider, int buffer ) {
+	public MusicRotatingPlayer( IceMount mount, MediaProvider defProvider, int buffer ) {
 		this.mount = mount;
 		this.defaultProvider = defProvider;
 		
@@ -51,7 +48,7 @@ public class MusicPlayer {
 		
 		defGenerator = new DefaultMetadataGenerator();
 		
-		player = new NativePlayer( mount );
+		player = new NativeRotatingPlayer( mount );
 		playlist = player.getPlaylist();
 		
 		player.setCallback( this::onMediaChanged );
@@ -60,46 +57,35 @@ public class MusicPlayer {
 	public void refill() {
 		lock.lock();
 		
-		// This bit is extra from the previous media provider and needs to be removed
-		int extra = playlist.getSize() - ( queuePos + 1 );
+		// Check if there is are any enqueued tracks
+		// Do not want to remove those
+		// Otherwise, refill and clear
+		playlist.lock();
+		// Get the size
+		int sizeBefore = playlist.getSize();
+		int toRemove = sizeBefore - ( queuePos + 1 );
+		int toAdd = buffer - ( queuePos + 1 );
 		
-		// But first, figure out how much actually needs to be added
-		// since everything after queuePos needs to be removed,
-		// but we only want to add up to the size of the buffer
-		int add = Math.max( 0, buffer - ( queuePos + 1 ) );
-		
-		for ( int i = 0; i < add; i++ ) {
+		for ( int i = 0; i < toAdd; i++ ) {
 			AudioRecord record = mediaProvider.provide();
 			if ( record == null || !record.getFile().exists() ) {
 				record = defaultProvider.provide();
 			}
 			
 			if ( record != null ) {
-				playlist.add( mediaProvider.provide() );
+				playlist.add( record );
 			}
 		}
 		
-		if ( player.isActive() && position > queuePos ) {
-			// Remove the first items in the list
-			for ( int i = 0; i < extra; i++ ) {
-				playlist.remove( 0 );
-			}
-			
-			// Only play if the playlist isn't empty
-			if ( playlist.getSize() > 0 ) {
-				// Now change to the new item
-				player.play( 0 );
-			} else {
-				// The playlist shouldn't ever be empty
-				// If it is, then stop the player and hope something else fixes the problem
-				stop();
-			}
-		} else {
-			// It's not currently playing anything we need to remove
-			// so we can remove it safely
-			for ( int i = 0; i < extra; i++ ) {
-				playlist.remove( queuePos + 1 );
-			}
+		for ( int i = 0; i < toRemove; i++ ) {
+			playlist.remove( queuePos + 1 );
+		}
+		
+		playlist.unlock();
+		
+		// If there's nothing queued
+		if ( player.isPlaying() && queuePos == -1 ) {
+			player.play( 0 );
 		}
 		
 		lock.unlock();
@@ -200,7 +186,9 @@ public class MusicPlayer {
 	
 	public List< AudioRecord > getPlaylist() {
 		lock.lock();
+		playlist.lock();
 		List< AudioRecord > copy = playlist.getQueue();
+		playlist.unlock();
 		lock.unlock();
 		
 		return copy;
@@ -208,7 +196,9 @@ public class MusicPlayer {
 	
 	public AudioRecord getCurrentlyPlaying() {
 		lock.lock();
-		AudioRecord file = playlist.get( position );
+		playlist.lock();
+		AudioRecord file = playlist.get( 0 );
+		playlist.unlock();
 		lock.unlock();
 		
 		return file;
@@ -218,23 +208,29 @@ public class MusicPlayer {
 		boolean successful = false;
 		
 		lock.lock();
-		if ( position > queuePos ) {
-			// The player currently isn't playing any queued items
-			queuePos = position + 1;
-			successful = playlist.insert( queuePos, file );
-			if ( isPlaying() && forceSkip ) {
-				player.playNext();
-			}
-		} else {
-			queuePos++;
-			successful = playlist.insert( queuePos, file );
+		// If there's nothing in the queue and the player is currently active,
+		// then we need to place the item after the 0th index to make
+		// sure that it gets played next.
+		if ( queuePos == -1 && player.isActive() ) {
+			queuePos = 0;
+		}
+		queuePos++;
+		
+		// Insert the item
+		playlist.lock();
+		successful = playlist.insert( queuePos, file );
+		playlist.fill();
+		playlist.unlock();
+		
+		if ( isPlaying() && forceSkip ) {
+			player.playNext();
 		}
 		lock.unlock();
 		
 		return successful;
 	}
 	
-	public MusicPlayer setCallback( MusicPlayerUpdateCallback callback ) {
+	public MusicRotatingPlayer setCallback( MusicPlayerUpdateCallback callback ) {
 		// Does this actually need a lock...
 		this.callback = callback; 
 		return this;
@@ -244,7 +240,7 @@ public class MusicPlayer {
 		return callback;
 	}
 	
-	public MusicPlayer setMetadata( MetadataGenerator generator ) {
+	public MusicRotatingPlayer setMetadata( MetadataGenerator generator ) {
 		this.generator = generator;
 		return this;
 	}
@@ -258,81 +254,35 @@ public class MusicPlayer {
 	}
 	
 	private void fill() {
-		// Check if the remaining amount of items is less than buffer
-		// playlist size - position < buffer
-		// If so, then get the difference and add x amount of items
-		// Then, remove up to the currently playing position
-		// However, what to do if we queue a list of songs, but then change the radio?
-		// Keep an index for the queued songs?
-		// Use a queue index for individually added songs
-		// Once position > queuePos then we know that we're done playing queued songs
 		lock.lock();
-		if ( position > 0 ) {
-			int needToAdd = Math.max( 0, ( buffer - playlist.getSize() ) + position );
-			for ( int i = 0; i < needToAdd; i++ ) {
-				AudioRecord record = mediaProvider.provide();
-				if ( record == null || !record.getFile().exists() ) {
-					record = defaultProvider.provide();
-				}
-				
-				if ( record != null ) {
-					playlist.add( mediaProvider.provide() );
-				}
+		
+		playlist.lock();
+		int needToAdd = Math.max( 0, ( buffer - playlist.getSize() ) );
+		for ( int i = 0; i < needToAdd; i++ ) {
+			AudioRecord record = mediaProvider.provide();
+			if ( record == null || !record.getFile().exists() ) {
+				record = defaultProvider.provide();
 			}
-	
-			for ( int i = 0; i < position; i++ ) {
-				// It seems like even though everything is shifted forwards, the list player has its own internal index
-				// for keeping track of where it is in the playlist.
-				// This means that we can't actually change the position of the element, or we can force set the index
-				// But then, that causes another issue where the media position gets changed again
-				// So, we need a way to determine if the currently playing one is right or not
-				/*
-				 * The order is as follows
-				 * Play
-				 * Skip
-				 * CALLED
-				 * Play
-				 * Remove
-				 * Skip
-				 * CALLED
-				 * Play internal <- Error here
-				 * 
-				 * Play
-				 * Skip
-				 * CALLED
-				 * Play
-				 * Remove
-				 * Play 0
-				 * CALLED
-				 * 
-				 * 
-				 */
-				playlist.remove( 0 );
-			}
-			queuePos = Math.max( queuePos - position, -1 );
-			
-			// Check if the player was playing something that's not the first track in the list
-			if ( position > 1 ) {
-				System.out.println( String.format( "Resetting the player position! Expected 0, got %u.", position - 1 ) );
-				player.play( 0 );
-				position = -1;
-			} else {
-				position = 0;
+
+			if ( record != null ) {
+				playlist.add( record );
 			}
 		}
+		playlist.unlock();
 		
+		queuePos = Math.max( queuePos - 1, -1 );
+			
 		lock.unlock();
 	}
 	
 	private void onMediaChanged( String newMrl ) {
-		// Now, I have no clue if at this point in time, the media player is actually playing something...
-		// But so far nothing's broken...
-		
 		lock.lock();
-		position++;
+		
 		fill();
 		
-		AudioRecord file = playlist.get( position );
+		playlist.lock();
+		AudioRecord file = playlist.get( 0 );
+		playlist.unlock();
 
 		if ( file.getFile().exists() ) {
 			// Callback before updating the metadata
@@ -390,15 +340,15 @@ public class MusicPlayer {
 			System.out.println( "No playlist!" );
 		} else {
 			for ( int i = 0; i < playlist.getSize(); i++ ) {
-				if ( i == position && i == queuePos && i == buffer - 1 ) {
+				if ( i == 0 && i == queuePos && i == buffer - 1 ) {
 					System.out.print( " ≡" );
-				} else if ( i == position && i == queuePos ) {
+				} else if ( i == 0 && i == queuePos ) {
 					System.out.print( " =" );
-				} else if ( i == position && i == buffer - 1 ) {
+				} else if ( i == 0 && i == buffer - 1 ) {
 					System.out.print( " !" );
 				} else if ( i == queuePos && i == buffer - 1 ) {
 					System.out.print( " %" );
-				} else if ( i == position ) {
+				} else if ( i == 0 ) {
 					System.out.print( " -" );
 				} else if ( i == queuePos ) {
 					System.out.print( " >" );

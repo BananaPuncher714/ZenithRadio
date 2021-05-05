@@ -18,7 +18,7 @@ import com.aaaaahhhhhhh.zenith.radio.util.BinaryReader;
 import com.aaaaahhhhhhh.zenith.radio.util.BinaryWriter;
 
 public class MusicCacheIO {
-	public static MusicCache read( File file ) throws IOException {
+	public static MusicCache read( File file, FileValidator validator ) throws IOException {
 		FileInputStream stream = new FileInputStream( file );
 		byte[] arr = IOUtils.toByteArray( stream );
 		BinaryReader reader = new BinaryReader( arr );
@@ -30,7 +30,7 @@ public class MusicCacheIO {
 		
 		int format = reader.getInt16Little();
 		if ( format == 1 ) {
-			return readFormat1( reader );
+			return readFormat1( reader, validator );
 		}
 		
 		throw new IllegalArgumentException( "Unsupported format version!" );
@@ -49,9 +49,7 @@ public class MusicCacheIO {
 		fos.close();
 	}
 	
-	private static MusicCache readFormat1( BinaryReader reader ) {
-		AudioFileValidator validator = new AudioFileValidator();
-		
+	private static MusicCache readFormat1( BinaryReader reader, FileValidator validator ) {
 		int recordCount = reader.getInt32Little();
 		
 		FileRecord[] records = new FileRecord[ recordCount ];

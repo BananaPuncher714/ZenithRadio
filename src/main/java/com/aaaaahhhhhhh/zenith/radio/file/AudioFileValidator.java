@@ -17,12 +17,16 @@ public class AudioFileValidator implements FileValidator {
 	
 	@Override
 	public boolean isValidFile( File file ) {
-		String name = file.getName();
-		for ( String pat : SUPPORTED_TYPES ) {
-			if ( name.endsWith( pat ) ) {
-				return true;
+		if ( file.isFile() ) {
+			String name = file.getName();
+			for ( String pat : SUPPORTED_TYPES ) {
+				if ( name.endsWith( pat ) ) {
+					return true;
+				}
 			}
+			return false;
+		} else {
+			return true;
 		}
-		return false;
 	}
 }

@@ -31,11 +31,19 @@ public class AudioRecord extends FileRecord {
 				AudioFile audioFile = AudioFileIO.readIgnoreArtwork( file );
 				Tag tag = audioFile.getTag().orNull();
 				
-				title = tag.getValue( FieldKey.TITLE ).or( file.getName() );
-				album = tag.getValue( FieldKey.ALBUM ).or( "Unknown" );
-				disc = tag.getValue( FieldKey.DISC_NO ).or( "" );
-				track = tag.getValue( FieldKey.TRACK ).or( "" );
-				artist = tag.getValue( FieldKey.ARTIST ).or( tag.getValue( FieldKey.ALBUM_ARTIST ).or( "Unknown" ) );
+				if ( tag != null ) {
+					title = tag.getValue( FieldKey.TITLE ).or( file.getName() );
+					album = tag.getValue( FieldKey.ALBUM ).or( "Unknown" );
+					disc = tag.getValue( FieldKey.DISC_NO ).or( "" );
+					track = tag.getValue( FieldKey.TRACK ).or( "" );
+					artist = tag.getValue( FieldKey.ARTIST ).or( tag.getValue( FieldKey.ALBUM_ARTIST ).or( "Unknown" ) );
+				} else {
+					title = file.getName();
+					album = "Unknown";
+					disc = "";
+					track = "";
+					artist = "Unknown";
+				}
 				
 				lastModified = newMod;
 				return true;

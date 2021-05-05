@@ -83,7 +83,6 @@ public class Search extends Command {
 					StringBuilder builder = new StringBuilder( "**__Matches(" + searchList.size() + "):__**\n" );
 					for ( int i = 0; i < Math.min( 100, searchList.size() ); i++ ) {
 						AudioRecord record = searchList.get( i );
-						String toAppend = "**" + ( i + 1 ) + "**" + " - " + record.getTrack() + ". " + record.getTitle() + " - **" + record.getAlbum() + "** // " + record.getArtist();
 						builder.append( "**" + ( i + 1 ) + "**" + " - " + record.getTrack() + ". " + record.getTitle() + " - **" + record.getAlbum() + "** // " + record.getArtist() );
 						if ( i < searchList.size() - 1 ) {
 							builder.append( "\n" );

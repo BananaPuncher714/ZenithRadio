@@ -25,8 +25,7 @@ public class Playlist extends Command{
 			List<AudioRecord> playlist = radio.getMediaApi().getPlaylist();
 			for ( int i = 0; i < playlist.size(); i++ ) {
 				AudioRecord record = playlist.get( i );
-				String toAppend = "**" + ( i + 1 ) + ". ** " + record.getTitle();
-				builder.append( toAppend );
+				builder.append( "**" + ( i + 1 ) + "**" + " - " + record.getTrack() + ". " + record.getTitle() + " - **" + record.getAlbum() + "** // " + record.getArtist() );
 				if ( i < playlist.size() - 1 ) {
 					builder.append( "\n" );
 				}

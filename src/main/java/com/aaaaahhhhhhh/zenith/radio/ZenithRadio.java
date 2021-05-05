@@ -11,12 +11,15 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.aaaaahhhhhhh.zenith.radio.client.ConsoleClient;
 import com.aaaaahhhhhhh.zenith.radio.client.DiscordClient;
 import com.aaaaahhhhhhh.zenith.radio.client.RadioClient;
+import com.aaaaahhhhhhh.zenith.radio.file.AudioFileValidator;
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
+import com.aaaaahhhhhhh.zenith.radio.file.CompoundFileValidator;
 import com.aaaaahhhhhhh.zenith.radio.file.DirectoryRecord.UpdateCache;
+import com.aaaaahhhhhhh.zenith.radio.file.FileValidator;
 import com.aaaaahhhhhhh.zenith.radio.file.MusicCache;
 import com.aaaaahhhhhhh.zenith.radio.file.MusicCacheIO;
-import com.aaaaahhhhhhh.zenith.radio.player.MusicRotatingPlayer;
 import com.aaaaahhhhhhh.zenith.radio.shout.IceMount;
+import com.aaaaahhhhhhh.zenith.radio.shout.MusicRotatingPlayer;
 
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.support.eventmanager.TaskExecutor;
@@ -133,23 +136,34 @@ public class ZenithRadio {
 		if ( properties.isMusicDirectorySet() ) {
 			debug( "Music directory detected" );
 			musicDirectory = properties.getMusicDirectory();
+			
+			FileValidator validator;
+			String exclude = properties.getProperties().getProperty( "exclusion-filters" );
+			if ( exclude == null || exclude.isEmpty() ) {
+				debug( "Not using any exclusion rule" );
+				validator = new AudioFileValidator();
+			} else {
+				debug( "Using exclusion rule '" + exclude + "'" );
+				validator = new CompoundFileValidator( exclude.split( "," ) );
+			}
+			
 			File cachedData = new File( homeDirectory, "cache.dat" );
 			if ( cachedData.exists() ) {
 				debug( "Music cache file found" );
 				try {
-					cache = MusicCacheIO.read( cachedData );
+					cache = MusicCacheIO.read( cachedData, validator );
 				} catch ( IOException e ) {
 					e.printStackTrace();
 				}
 				
 				if ( !cache.getBaseDirectory().getAbsolutePath().equals( musicDirectory.getAbsolutePath() ) ) {
 					debug( "Directory mismatch! Creating a new music cache" );
-					cache = new MusicCache( musicDirectory );
+					cache = new MusicCache( musicDirectory, validator );
 				}
 			} else {
 				debug( "No music cache file found" );
 				debug( "Creating a new music cache" );
-				cache = new MusicCache( musicDirectory );
+				cache = new MusicCache( musicDirectory, validator );
 			}
 		} else {
 			debug( "No music directory set!" );

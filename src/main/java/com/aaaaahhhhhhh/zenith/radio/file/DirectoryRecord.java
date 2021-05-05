@@ -34,7 +34,7 @@ public class DirectoryRecord extends FileRecord {
 			Entry< String, FileRecord > entry = iterator.next();
 			FileRecord record = entry.getValue();
 
-			if ( record.file.exists() ) {
+			if ( record.getFile().exists() && validator.isValidFile( record.getFile() ) ) {
 				if ( record instanceof AudioRecord ) {
 					AudioRecord aRecord = ( AudioRecord ) record;
 					if ( aRecord.update() ) {
@@ -67,14 +67,14 @@ public class DirectoryRecord extends FileRecord {
 					continue;
 				}
 	
-				if ( !subRecords.containsKey( path ) ) {
+				if ( !subRecords.containsKey( path ) && validator.isValidFile( subItem ) ) {
 					if ( subItem.isDirectory() ) {
 						DirectoryRecord newRecord = new DirectoryRecord( subItem, validator );
 	
 						cache.merge( newRecord.updateDirectory() );
 						
 						subRecords.put( path, newRecord );
-					} else if ( validator.isValidFile( subItem ) ) {
+					} else {
 						AudioRecord newRecord = new AudioRecord( subItem );
 						newRecord.update();
 	

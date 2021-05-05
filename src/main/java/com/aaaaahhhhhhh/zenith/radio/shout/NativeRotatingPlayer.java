@@ -46,7 +46,7 @@ import uk.co.caprica.vlcj.binding.internal.libvlc_media_t;
 import uk.co.caprica.vlcj.player.list.PlaybackMode;
 import uk.co.caprica.vlcj.support.eventmanager.TaskExecutor;
 
-public class NativePlayer implements MediaPlayer {
+public class NativeRotatingPlayer implements MediaPlayer {
 	private static final String MEDIA_OPTION_TEMPLATE = ":sout=#transcode{vcodec=none,acodec=%s,ab=%d,channels=2,samplerate=44100,scodec=none}:std{access=shout,mux=%s,dst=//source:%s@%s:%d/%s}";
 	
 	private final libvlc_instance_t libvlcInstance;
@@ -55,13 +55,15 @@ public class NativePlayer implements MediaPlayer {
 	private final libvlc_callback_t eventCallback;
 
 	private final TaskExecutor executor = new TaskExecutor();
-	private final NativePlaylist playlist;
+	private final NativeRotatingPlaylist playlist;
 	private final String mediaOption;
 
 	private MediaChangedEventCallback callback;
 	private boolean paused = false;
 	
-	public NativePlayer( IceMount mount, String... options ) {
+	private int playlistBuffer = 3;
+	
+	public NativeRotatingPlayer( IceMount mount, String... options ) {
 		String[] factoryOptions = getFactoryArgsFor( mount, options );
 		this.libvlcInstance = libvlc_new( factoryOptions.length, new StringArray( factoryOptions ) );
 		this.mediaOption = String.format( MEDIA_OPTION_TEMPLATE,
@@ -93,6 +95,17 @@ public class NativePlayer implements MediaPlayer {
 							String mrl = NativeString.copyNativeString( libvlc_media_get_mrl( playing ) );
 							libvlc_media_release( playing );
 							
+							// Increment, remove and fill
+							playlist.lock();
+							// Only remove and fill if it changed tracks, not if it just started playing
+							int prevHead = playlist.getHead();
+							playlist.increment();
+							if ( prevHead != -1 ) {
+								playlist.remove( 0 );
+								playlist.fill();
+							}
+							playlist.unlock();
+							
 							callback.mediaChanged( mrl );
 						} );
 					}
@@ -105,7 +118,7 @@ public class NativePlayer implements MediaPlayer {
 		libvlc_event_attach( manager, libvlc_event_e.libvlc_MediaPlayerMediaChanged.intValue(), eventCallback, null );
 		
 		// Set the playlist for the player
-		playlist = new NativePlaylist( libvlcInstance, mediaOption );
+		playlist = new NativeRotatingPlaylist( libvlcInstance, playlistBuffer, mediaOption );
 		libvlc_media_list_player_set_media_list( player, playlist.getNativeMediaList() );
 	}
 	
@@ -121,7 +134,7 @@ public class NativePlayer implements MediaPlayer {
 	}
 	
 	@Override
-	public NativePlaylist getPlaylist() {
+	public NativeRotatingPlaylist getPlaylist() {
 		return playlist;
 	}
 	
@@ -133,6 +146,13 @@ public class NativePlayer implements MediaPlayer {
 	@Override
 	public void play() {
 		paused = false;
+
+		// Reset and refill
+		playlist.lock();
+		playlist.resetPosition();
+		playlist.fill();
+		playlist.unlock();
+		
 		libvlc_media_list_player_play( player );
 	}
 	
@@ -160,7 +180,19 @@ public class NativePlayer implements MediaPlayer {
 	@Override
 	public void play( int index ) {
 		paused = false;
-		libvlc_media_list_player_play_item_at_index( player, index );
+
+		playlist.lock();
+		// Remove all items up to the index
+		for ( int i = 0; i < index; i++ ) {
+			playlist.remove( 0 );
+		}
+		
+		// Reset and refill
+		playlist.resetPosition();
+		playlist.fill();
+		playlist.unlock();
+		
+		libvlc_media_list_player_play_item_at_index( player, 0 );
 	}
 	
 	@Override

@@ -32,11 +32,11 @@ public class MusicCache {
 	
 	private final ReentrantLock lock = new ReentrantLock();
 	
-	public MusicCache( File dir ) { 
+	public MusicCache( File dir, FileValidator validator ) { 
 		baseDir = dir;
 		baseDir.mkdirs();
 
-		record = new DirectoryRecord( baseDir, new AudioFileValidator() );
+		record = new DirectoryRecord( baseDir, validator );
 	}
 	
 	public MusicCache( DirectoryRecord record ) {

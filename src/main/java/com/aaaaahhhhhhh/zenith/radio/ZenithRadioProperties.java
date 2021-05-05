@@ -55,6 +55,9 @@ public class ZenithRadioProperties {
 		// The main directory where music is stored
 		properties.setProperty( "music-directory", "" );
 		
+		// Filters for excluding music
+		properties.setProperty( "exclusion-filters", "" );
+		
 		// The icecast connection
 		properties.setProperty( "icecast-address", "localhost" );
 		properties.setProperty( "icecast-port", "8000" );
