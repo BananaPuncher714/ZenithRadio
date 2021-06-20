@@ -11,7 +11,7 @@
 		<dependency>
 			<groupId>uk.co.caprica</groupId>
 			<artifactId>vlcj</artifactId>
-			<version>4.6.0</version>
+			<version>4.7.1</version>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/com.squareup.okio/okio -->
 		<dependency>

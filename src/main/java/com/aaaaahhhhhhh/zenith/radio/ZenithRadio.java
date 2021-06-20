@@ -28,6 +28,10 @@ public class ZenithRadio {
 	private static File BASE = new File( System.getProperty( "user.dir" ) );
 	private static final boolean VERBOSE = true;
 	
+	static {
+		System.setProperty( "jna.encoding", "UTF8" );
+	}
+	
 	public static void main( String[] args ) {
 		ZenithRadio radio = new ZenithRadio( BASE );
 		if ( radio.getMusicDirectory() == null ) {

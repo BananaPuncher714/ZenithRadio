@@ -213,6 +213,11 @@ public class NativeRotatingPlayer implements MediaPlayer {
 	private static String[] getFactoryArgsFor( IceMount mount, String... options ) {
 		List< String > args = new ArrayList< String >();
 		
+//		args.add( "--file-logging" );
+//		args.add( "--logfile=" );
+//		args.add( "--logmode=text" );
+//		args.add( "--log-verbose=3" );
+		
 		args.add( "--no-sout-all" );
 		if ( mount.isUseMp3() ) {
 			args.add( "--sout-shout-mp3" );
