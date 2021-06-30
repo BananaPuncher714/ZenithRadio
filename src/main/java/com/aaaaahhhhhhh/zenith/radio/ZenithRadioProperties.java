@@ -69,6 +69,13 @@ public class ZenithRadioProperties {
 		properties.setProperty( "icecast-url", "https://www.aaaaahhhhhhh.com" );
 		properties.setProperty( "icecast-bitrate", "320" );
 		properties.setProperty( "icecast-use-mp3", "true" );
+		
+		properties.setProperty( "image-server-enabled", "true" );
+		properties.setProperty( "image-server-url", "http://localhost" );
+		properties.setProperty( "image-server-internal-port", "48596" );
+		properties.setProperty( "image-server-external-port", "48596" );
+		properties.setProperty( "image-server-path", "cover" );
+		properties.setProperty( "image-save-path", "" );
 	}
 	
 	private void load() {

@@ -12,7 +12,7 @@ public interface MediaPlayer {
 	boolean isPaused();
 	boolean isPlaying();
 	boolean isActive();
-	void setCallback( MediaChangedEventCallback callback );
+	void setCallback( MediaEventCallback callback );
 	Playlist getPlaylist();
 	void release();
 }

@@ -57,7 +57,7 @@ public class DirectoryRecord extends FileRecord {
 		Path filePath = file.toPath();
 		try {
 			DirectoryStream< Path > dirStream = Files.newDirectoryStream( filePath );
-		
+
 			for ( Path subPath: dirStream ) {
 				File subItem = subPath.toFile();
 				String path = subItem.getAbsolutePath();

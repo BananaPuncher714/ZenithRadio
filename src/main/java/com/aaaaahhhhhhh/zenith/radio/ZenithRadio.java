@@ -2,11 +2,14 @@ package com.aaaaahhhhhhh.zenith.radio;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.aaaaahhhhhhh.zenith.radio.client.ConsoleClient;
 import com.aaaaahhhhhhh.zenith.radio.client.DiscordClient;
@@ -18,6 +21,9 @@ import com.aaaaahhhhhhh.zenith.radio.file.DirectoryRecord.UpdateCache;
 import com.aaaaahhhhhhh.zenith.radio.file.FileValidator;
 import com.aaaaahhhhhhh.zenith.radio.file.MusicCache;
 import com.aaaaahhhhhhh.zenith.radio.file.MusicCacheIO;
+import com.aaaaahhhhhhh.zenith.radio.http.MiniHttpd;
+import com.aaaaahhhhhhh.zenith.radio.media.DefaultMetadataGenerator;
+import com.aaaaahhhhhhh.zenith.radio.media.ImageMetadataGenerator;
 import com.aaaaahhhhhhh.zenith.radio.shout.IceMount;
 import com.aaaaahhhhhhh.zenith.radio.shout.MusicRotatingPlayer;
 
@@ -68,6 +74,7 @@ public class ZenithRadio {
 		
 		client.stop();
 		discordClient.stop();
+		
 	}
 	
 	public static String timeFormat( long time ) {
@@ -78,6 +85,7 @@ public class ZenithRadio {
 	
 	private final File homeDirectory;
 	private File musicDirectory;
+	private File coverDirectory;
 	private IceMount mount;
 	private MusicRotatingPlayer player;
 	private MusicCache cache;
@@ -86,6 +94,8 @@ public class ZenithRadio {
 	
 	private RadioMedia mediaManager;
 	private RadioControls controls;
+	
+	private MiniHttpd httpd;
 	
 	private final TaskExecutor executor = new TaskExecutor();
 	
@@ -97,7 +107,9 @@ public class ZenithRadio {
 		homeDirectory = homeDir;
 		homeDirectory.mkdirs();
 		
-		load();
+		if ( !load() ) {
+			throw new IllegalArgumentException( "Failed to load properly!" );
+		}
 	}
 	
 	public File getMusicDirectory() {
@@ -108,6 +120,9 @@ public class ZenithRadio {
 		return homeDirectory;
 	}
 	
+	public File getCoverArtDirectory() {
+		return coverDirectory;
+	}
 	public RadioMedia getMediaApi() {
 		return mediaManager;
 	}
@@ -132,7 +147,7 @@ public class ZenithRadio {
 		return lock;
 	}
 	
-	private void load() {
+	private boolean load() {
 		lock.lock();
 		File configFile = new File( homeDirectory, "config.properties" );
 		this.properties = new ZenithRadioProperties( configFile );
@@ -140,6 +155,16 @@ public class ZenithRadio {
 		if ( properties.isMusicDirectorySet() ) {
 			debug( "Music directory detected" );
 			musicDirectory = properties.getMusicDirectory();
+			
+			if ( !musicDirectory.exists() ) {
+				debug( "The file "+ musicDirectory + " does not exist!" );
+				return false;
+			}
+			
+			if ( !musicDirectory.isDirectory() ) {
+				debug( "The file " + musicDirectory + " is not a directory!" );
+				return false;
+			}
 			
 			FileValidator validator;
 			String exclude = properties.getProperties().getProperty( "exclusion-filters" );
@@ -176,18 +201,59 @@ public class ZenithRadio {
 		controls = new RadioControls( this );
 		mediaManager = new RadioMedia( this );
 		
+		String imagePath = properties.getProperties().getProperty( "image-save-path" );
+		if ( imagePath == null || imagePath.isEmpty() ) {
+			coverDirectory = new File( homeDirectory, "covers" );
+		} else {
+			coverDirectory = new File( imagePath );
+		}
+		coverDirectory.mkdirs();
+		
+		if ( "true".equalsIgnoreCase( properties.getProperties().getProperty( "image-server-enabled" ) ) ) {
+			try {
+				int port = Integer.valueOf( properties.getProperties().getProperty( "image-server-internal-port" ) );
+				if ( port > 0 ) {
+					try {
+						debug( "Starting the image server on port " + port );
+						httpd = new MiniHttpd( port, this::serveCoverArt );
+						new Thread( httpd::run ).start();
+					} catch ( IOException e ) {
+						e.printStackTrace();
+					}
+				}
+			} catch  ( Exception e ) {
+			}
+		}
+		
 		lock.unlock();
+		
+		return true;
 	}
 	
 	private void init() {
 		lock.lock();
 		cache.init();
+		
+		int size = cache.getRecords().size();
+		if ( size == 0 ) {
+			throw new IllegalArgumentException( "No tracks have been detected!" );
+		} else {
+			debug( size + " tracks found!" );
+		}
+		
 		CacheProvider provider = new CacheProvider( cache );
 		
 		debug( "Setting the IceMount's genre " );
 		mount = properties.getIceMount().setGenre( randomSplash() );
 		debug( "Creating a new music player" );
 		player = new MusicRotatingPlayer( mount, provider ).setCallback( this::playerCallback );
+		
+		String baseUrl = String.format( "%s:%s/%s/",
+				properties.getProperties().getProperty( "image-server-url", "http://localhost" ),
+				properties.getProperties().getProperty( "image-server-external-port", "48596" ),
+				properties.getProperties().getProperty( "image-server-path", "cover" )
+		);
+		player.setMetadata( new ImageMetadataGenerator( new DefaultMetadataGenerator(), baseUrl, coverDirectory ) );
 		
 		// Set the current provider for the radio
 		player.setProvider( provider );
@@ -221,6 +287,16 @@ public class ZenithRadio {
 			client.onMediaChange( this, file );
 		}
 		lock.unlock();
+	}
+	
+	private File serveCoverArt( String path, InetAddress address ) {
+		Pattern pattern = Pattern.compile( "^cover\\/(-?[0-9]+\\.png)$" );
+		Matcher matcher = pattern.matcher( path );
+		if ( matcher.find() ) {
+			String file = matcher.group( 1 );
+			return new File( coverDirectory, file );
+		}
+		return null;
 	}
 	
 	public void submit( Runnable runnable ) {
@@ -279,6 +355,12 @@ public class ZenithRadio {
 			properties.save();
 			success = true;
 		}
+		
+		if ( httpd != null ) {
+			debug( "Stopping the image server" );
+			httpd.stop();
+		}
+		
 		lock.unlock();
 		
 		return success;

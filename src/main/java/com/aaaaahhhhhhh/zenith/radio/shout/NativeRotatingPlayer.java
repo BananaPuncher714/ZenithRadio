@@ -29,7 +29,7 @@ import static uk.co.caprica.vlcj.binding.LibVlc.libvlc_release;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.aaaaahhhhhhh.zenith.radio.media.MediaChangedEventCallback;
+import com.aaaaahhhhhhh.zenith.radio.media.MediaEventCallback;
 import com.aaaaahhhhhhh.zenith.radio.media.MediaPlayer;
 import com.sun.jna.Pointer;
 import com.sun.jna.StringArray;
@@ -58,7 +58,7 @@ public class NativeRotatingPlayer implements MediaPlayer {
 	private final NativeRotatingPlaylist playlist;
 	private final String mediaOption;
 
-	private MediaChangedEventCallback callback;
+	private MediaEventCallback callback;
 	private boolean paused = false;
 	
 	private int playlistBuffer = 3;
@@ -109,6 +109,16 @@ public class NativeRotatingPlayer implements MediaPlayer {
 							callback.mediaChanged( mrl );
 						} );
 					}
+				} else if ( event.type == libvlc_event_e.libvlc_MediaPlayerPlaying.intValue() ) {
+					if ( callback != null ) {
+						executor.submit( () -> {
+							libvlc_media_t playing = libvlc_media_player_get_media( mediaPlayer );
+							String mrl = NativeString.copyNativeString( libvlc_media_get_mrl( playing ) );
+							libvlc_media_release( playing );
+							
+							callback.mediaPlaying( mrl );
+						} );
+					}
 				}
 			}
 		};
@@ -116,6 +126,7 @@ public class NativeRotatingPlayer implements MediaPlayer {
 		// Get the event manager and listen for some events
 		libvlc_event_manager_t manager = libvlc_media_player_event_manager( mediaPlayer );
 		libvlc_event_attach( manager, libvlc_event_e.libvlc_MediaPlayerMediaChanged.intValue(), eventCallback, null );
+		libvlc_event_attach( manager, libvlc_event_e.libvlc_MediaPlayerPlaying.intValue(), eventCallback, null );
 		
 		// Set the playlist for the player
 		playlist = new NativeRotatingPlaylist( libvlcInstance, playlistBuffer, mediaOption );
@@ -127,6 +138,7 @@ public class NativeRotatingPlayer implements MediaPlayer {
 		
 		libvlc_event_manager_t manager = libvlc_media_player_event_manager( mediaPlayer );
 		libvlc_event_detach( manager, libvlc_event_e.libvlc_MediaPlayerMediaChanged.intValue(), eventCallback, null );
+		libvlc_event_detach( manager, libvlc_event_e.libvlc_MediaPlayerPlaying.intValue(), eventCallback, null );
 		libvlc_media_player_release( mediaPlayer );
 		libvlc_media_list_player_release( player );
 		libvlc_release( libvlcInstance );
@@ -139,7 +151,7 @@ public class NativeRotatingPlayer implements MediaPlayer {
 	}
 	
 	@Override
-	public void setCallback( MediaChangedEventCallback callback ) {
+	public void setCallback( MediaEventCallback callback ) {
 		this.callback = callback;
 	}
 	

@@ -3,6 +3,7 @@ package com.aaaaahhhhhhh.zenith.radio.media;
 public class ShoutMetadata {
 	private String title;
 	private String artist;
+	private String url;
 	
 	public ShoutMetadata( String title, String artist ) {
 		this.title = title;
@@ -27,5 +28,14 @@ public class ShoutMetadata {
 		String oldArtist = this.artist;
 		this.artist = artist;
 		return oldArtist;
+	}
+
+	public String getUrl() {
+		return url;
+	}
+
+	public ShoutMetadata setUrl( String url ) {
+		this.url = url;
+		return this;
 	}
 }

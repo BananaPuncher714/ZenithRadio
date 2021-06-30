@@ -10,6 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
 import com.aaaaahhhhhhh.zenith.radio.media.DefaultMetadataGenerator;
+import com.aaaaahhhhhhh.zenith.radio.media.MediaEventCallback;
 import com.aaaaahhhhhhh.zenith.radio.media.MediaProvider;
 import com.aaaaahhhhhhh.zenith.radio.media.MetadataGenerator;
 import com.aaaaahhhhhhh.zenith.radio.media.MusicPlayerUpdateCallback;
@@ -51,7 +52,17 @@ public class MusicRotatingPlayer {
 		player = new NativeRotatingPlayer( mount );
 		playlist = player.getPlaylist();
 		
-		player.setCallback( this::onMediaChanged );
+		player.setCallback( new MediaEventCallback() {
+			@Override
+			public void mediaChanged(String mrl) {
+				onMediaChanged( mrl );
+			}
+			
+			@Override
+			public void mediaPlaying( String mrl ) {
+				onMediaPlaying( mrl );
+			}
+		} );
 	}
 	
 	public void refill() {
@@ -275,6 +286,19 @@ public class MusicRotatingPlayer {
 		lock.unlock();
 	}
 	
+	private void onMediaPlaying( String mrl ) {
+		playlist.lock();
+		AudioRecord file = playlist.get( 0 );
+		playlist.unlock();
+		ShoutMetadata metadata;
+		if ( generator != null ) {
+			metadata = generator.getMetadataFor( file );
+		} else {
+			metadata = defGenerator.getMetadataFor( file );
+		}
+		updateMetadata( mount, metadata );
+	}
+	
 	private void onMediaChanged( String newMrl ) {
 		lock.lock();
 		
@@ -289,14 +313,6 @@ public class MusicRotatingPlayer {
 			if ( callback != null ) {
 				callback.onMusicPlayerUpdateEvent( file );
 			}
-
-			ShoutMetadata metadata;
-			if ( generator != null ) {
-				metadata = generator.getMetadataFor( file );
-			} else {
-				metadata = defGenerator.getMetadataFor( file );
-			}
-			updateMetadata( mount, metadata );
 		} else {
 			// The file doesn't exist, so skip it
 			System.out.println( "Missing file!! " + file.getFile().getAbsolutePath() );
@@ -306,10 +322,10 @@ public class MusicRotatingPlayer {
 	}
 	
 	private static boolean updateMetadata( IceMount mount, ShoutMetadata metadata ) {
-		return updateMetadata( mount, metadata.getArtist(), metadata.getTitle() );
+		return updateMetadata( mount, metadata.getArtist(), metadata.getTitle(), metadata.getUrl() );
 	}
 	
-	private static boolean updateMetadata( IceMount mount, String artist, String title ) {
+	private static boolean updateMetadata( IceMount mount, String artist, String title, String streamUrl ) {
 		String strUrl = "http://%s:%d/admin/metadata?mode=updinfo&mount=/%s&song=%s";
 		try {
 			strUrl = String.format( strUrl,
@@ -317,6 +333,10 @@ public class MusicRotatingPlayer {
 					mount.getPort(),
 					mount.getMount(),
 					URLEncoder.encode( artist.replace( " - ", " – " ) + " - " + title, "UTF-8" ) );
+
+			if ( streamUrl != null ) {
+				strUrl = strUrl + "&url=" + streamUrl;
+			}
 			
 			URL url = new URL( strUrl );
 			URLConnection con = url.openConnection();
@@ -325,7 +345,7 @@ public class MusicRotatingPlayer {
 			String encoded = Base64.getEncoder().encodeToString( encode.getBytes( "UTF-8" ) );
 			con.setRequestProperty( "Authorization", "Basic " + encoded );
 			
-			con.getInputStream();
+			con.getInputStream().close();
 			
 			return true;
 		} catch ( IOException exception ) {
