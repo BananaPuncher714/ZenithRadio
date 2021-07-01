@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.regex.Matcher;
@@ -71,9 +72,11 @@ public class MiniHttpd {
 		protected final MiniHttpd server;
 		protected final Socket client;
 
-		public HttpdConnection( MiniHttpd server, Socket client ) {
+		public HttpdConnection( MiniHttpd server, Socket client ) throws SocketException {
 			this.server = server;
 			this.client = client;
+			
+			client.setSoTimeout( 10_000 );
 		}
 
 		public void run() {
@@ -88,7 +91,7 @@ public class MiniHttpd {
 					File result = supplier.request( request, client.getInetAddress() );
 
 					if ( result == null ) {
-						out.write( "HTTP/1.0 400 Bad Request\r\n".getBytes() );
+						out.write( "HTTP/1.0 404 Bad Request\r\n\r\n".getBytes() );
 					} else {
 						try {
 							// Writes zip files specifically; Designed for resource pack hosting
@@ -105,11 +108,11 @@ public class MiniHttpd {
 							out.flush();
 							fis.close();
 						} catch ( FileNotFoundException e ) {
-							out.write( "HTTP/1.0 404 Object Not Found\r\n".getBytes() );
+							out.write( "HTTP/1.0 404 Object Not Found\r\n\r\n".getBytes() );
 						}
 					}
 				} else {
-					out.write( "HTTP/1.0 400 Bad Request\r\n".getBytes() );
+					out.write( "HTTP/1.0 404 Bad Request\r\n\r\n".getBytes() );
 				}
 				out.close();
 			} catch ( IOException e ) {

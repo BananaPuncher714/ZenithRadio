@@ -290,7 +290,7 @@ public class ZenithRadio {
 	}
 	
 	private File serveCoverArt( String path, InetAddress address ) {
-		Pattern pattern = Pattern.compile( "^cover\\/(-?[0-9]+\\.png)$" );
+		Pattern pattern = Pattern.compile( String.format( "^%s\\/(-?[0-9]+\\.png)$", properties.getProperties().getProperty( "image-server-path", "cover" ) ) );
 		Matcher matcher = pattern.matcher( path );
 		if ( matcher.find() ) {
 			String file = matcher.group( 1 );

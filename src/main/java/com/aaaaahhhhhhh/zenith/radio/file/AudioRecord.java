@@ -82,7 +82,7 @@ public class AudioRecord extends FileRecord {
 	
 	public BufferedImage getCoverArt() {
 		try {
-			AudioFile audioFile = AudioFileIO.readIgnoreArtwork( file );
+			AudioFile audioFile = AudioFileIO.read( file );
 			Tag tag = audioFile.getTag().orNull();
 			
 			BufferedImage image = null;
@@ -104,7 +104,7 @@ public class AudioRecord extends FileRecord {
 				File parent = file.getParentFile();
 				for ( int i = 0; i < 2; i++ ) {
 					for ( File f : parent.listFiles() ) {
-						if ( f.getName().toLowerCase().matches( "^cover.(png|jpg)$" ) ) {
+						if ( f.getName().toLowerCase().matches( "^(folder|cover)\\.(png|jpg)$" ) ) {
 							image = ImageIO.read( f );
 						}
 					}
