@@ -90,6 +90,7 @@ public class ZenithRadio {
 	private MusicRotatingPlayer player;
 	private MusicCache cache;
 	private ZenithRadioProperties properties;
+	private ImageServerProperties imageProperties;
 	private PlaylistManager manager;
 	
 	private RadioMedia mediaManager;
@@ -133,6 +134,15 @@ public class ZenithRadio {
 	
 	public PlaylistManager getPlaylistManager() {
 		return manager;
+	}
+
+	public String getUrl() {
+		return properties.getProperties().getProperty( "icecast-url", "https://radio.aaaaahhhhhhh.com" );
+	}
+	
+	public ImageServerProperties getImageServerProperties() {
+		// TODO Manage this properly
+		return imageProperties;
 	}
 	
 	protected MusicRotatingPlayer getPlayer() {
@@ -201,6 +211,14 @@ public class ZenithRadio {
 		controls = new RadioControls( this );
 		mediaManager = new RadioMedia( this );
 		
+		imageProperties = new ImageServerProperties()
+			.setEnabled( "true".equalsIgnoreCase( properties.getProperties().getProperty( "image-server-enabled" ) ) )
+			.setBaseUrl( properties.getProperties().getProperty( "image-server-url", "http://localhost" ) )
+			.setServerPath( properties.getProperties().getProperty( "image-server-path", "" ) )
+			.setSavePath( properties.getProperties().getProperty( "image-save-path", "" ) )
+			.setInternalPort( Integer.valueOf( properties.getProperties().getProperty( "image-server-internal-port", "0" ) ) )
+			.setExternalPort( Integer.valueOf( properties.getProperties().getProperty( "image-server-external-port", "0" ) ) );
+		
 		String imagePath = properties.getProperties().getProperty( "image-save-path" );
 		if ( imagePath == null || imagePath.isEmpty() ) {
 			coverDirectory = new File( homeDirectory, "covers" );
@@ -209,9 +227,9 @@ public class ZenithRadio {
 		}
 		coverDirectory.mkdirs();
 		
-		if ( "true".equalsIgnoreCase( properties.getProperties().getProperty( "image-server-enabled" ) ) ) {
+		if ( imageProperties.isEnabled() ) {
 			try {
-				int port = Integer.valueOf( properties.getProperties().getProperty( "image-server-internal-port" ) );
+				int port = imageProperties.getInternalPort();
 				if ( port > 0 ) {
 					try {
 						debug( "Starting the image server on port " + port );
@@ -249,9 +267,9 @@ public class ZenithRadio {
 		player = new MusicRotatingPlayer( mount, provider ).setCallback( this::playerCallback );
 		
 		String baseUrl = String.format( "%s:%s/%s/",
-				properties.getProperties().getProperty( "image-server-url", "http://localhost" ),
-				properties.getProperties().getProperty( "image-server-external-port", "48596" ),
-				properties.getProperties().getProperty( "image-server-path", "cover" )
+				imageProperties.getBaseUrl(),
+				imageProperties.getExternalPort(),
+				imageProperties.getServerPath()
 		);
 		player.setMetadata( new ImageMetadataGenerator( new DefaultMetadataGenerator(), baseUrl, coverDirectory ) );
 		
@@ -290,7 +308,7 @@ public class ZenithRadio {
 	}
 	
 	private File serveCoverArt( String path, InetAddress address ) {
-		Pattern pattern = Pattern.compile( String.format( "^%s\\/(-?[0-9]+\\.png)$", properties.getProperties().getProperty( "image-server-path", "cover" ) ) );
+		Pattern pattern = Pattern.compile( String.format( "^%s\\/(-?[0-9]+\\.png)$", imageProperties.getServerPath() ) );
 		Matcher matcher = pattern.matcher( path );
 		if ( matcher.find() ) {
 			String file = matcher.group( 1 );

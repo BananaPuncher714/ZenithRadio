@@ -25,9 +25,9 @@
 			<version>4.2.0_168</version>
 		</dependency>
 		<dependency>
-			<groupId>com.ealva</groupId>
-			<artifactId>ealvatag</artifactId>
-			<version>0.4.6</version>
+			<groupId>net.jthink</groupId>
+			<artifactId>jaudiotagger</artifactId>
+			<version>2.2.3</version>
 		</dependency>
 		<dependency>
 			<groupId>commons-io</groupId>

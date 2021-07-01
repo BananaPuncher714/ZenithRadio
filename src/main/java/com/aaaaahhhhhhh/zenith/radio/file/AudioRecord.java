@@ -1,20 +1,20 @@
 package com.aaaaahhhhhhh.zenith.radio.file;
 
-import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
 import javax.imageio.ImageIO;
 
-import ealvatag.audio.AudioFile;
-import ealvatag.audio.AudioFileIO;
-import ealvatag.audio.exceptions.CannotReadException;
-import ealvatag.audio.exceptions.InvalidAudioFrameException;
-import ealvatag.tag.FieldKey;
-import ealvatag.tag.Tag;
-import ealvatag.tag.TagException;
-import ealvatag.tag.images.Artwork;
+import org.jaudiotagger.audio.AudioFile;
+import org.jaudiotagger.audio.AudioFileIO;
+import org.jaudiotagger.audio.exceptions.CannotReadException;
+import org.jaudiotagger.audio.exceptions.InvalidAudioFrameException;
+import org.jaudiotagger.audio.exceptions.ReadOnlyFileException;
+import org.jaudiotagger.tag.FieldKey;
+import org.jaudiotagger.tag.Tag;
+import org.jaudiotagger.tag.TagException;
+import org.jaudiotagger.tag.images.Artwork;
 
 public class AudioRecord extends FileRecord {
 	protected String album = "";
@@ -33,15 +33,15 @@ public class AudioRecord extends FileRecord {
 		
 		if ( newMod > lastModified ) {
 			try {
-				AudioFile audioFile = AudioFileIO.readIgnoreArtwork( file );
-				Tag tag = audioFile.getTag().orNull();
+				AudioFile audioFile = AudioFileIO.read( file );
+				Tag tag = audioFile.getTag();
 				
 				if ( tag != null ) {
-					title = tag.getValue( FieldKey.TITLE ).or( file.getName() );
-					album = tag.getValue( FieldKey.ALBUM ).or( "Unknown" );
-					disc = tag.getValue( FieldKey.DISC_NO ).or( "" );
-					track = tag.getValue( FieldKey.TRACK ).or( "" );
-					artist = tag.getValue( FieldKey.ARTIST ).or( tag.getValue( FieldKey.ALBUM_ARTIST ).or( "Unknown" ) );
+					if ( ( title = tag.getFirst( FieldKey.TITLE ) ) == null ) title = file.getName();
+					if ( ( album = tag.getFirst( FieldKey.ALBUM ) ) == null ) album = "Unknown";
+					if ( ( disc = tag.getFirst( FieldKey.DISC_NO ) ) == null ) disc = "";
+					if ( ( track = tag.getFirst( FieldKey.TRACK ) ) == null ) track = "";
+					if ( ( artist = tag.getFirst( FieldKey.ARTIST ) ) == null ) if ( ( artist = tag.getFirst( FieldKey.ALBUM_ARTIST ) ) == null ) artist = "Unknown";
 				} else {
 					title = file.getName();
 					album = "Unknown";
@@ -52,7 +52,7 @@ public class AudioRecord extends FileRecord {
 				
 				lastModified = newMod;
 				return true;
-			} catch ( IOException | CannotReadException | TagException | InvalidAudioFrameException e ) {
+			} catch ( IOException | CannotReadException | TagException | InvalidAudioFrameException | ReadOnlyFileException e ) {
 				// Kind of buggy, but hope that it doesn't break here
 				e.printStackTrace();
 			}
@@ -83,18 +83,16 @@ public class AudioRecord extends FileRecord {
 	public BufferedImage getCoverArt() {
 		try {
 			AudioFile audioFile = AudioFileIO.read( file );
-			Tag tag = audioFile.getTag().orNull();
+			Tag tag = audioFile.getTag();
 			
 			BufferedImage image = null;
 			// Try and fetch the image from the file
 			if ( tag != null ) {
-				if ( tag.getSupportedFields().contains( FieldKey.COVER_ART ) ) {
-					Artwork art = tag.getFirstArtwork().orNull();
-					if ( art != null ) {
-						Object artImage = art.getImage();
-						if ( artImage instanceof BufferedImage ) {
-							image = ( BufferedImage ) artImage;
-						}
+				Artwork art = tag.getFirstArtwork();
+				if ( art != null ) {
+					Object artImage = art.getImage();
+					if ( artImage instanceof BufferedImage ) {
+						image = ( BufferedImage ) artImage;
 					}
 				}
 			}
@@ -113,7 +111,7 @@ public class AudioRecord extends FileRecord {
 			}
 			
 			return image;
-		} catch ( IOException | CannotReadException | TagException | InvalidAudioFrameException e ) {
+		} catch ( IOException | CannotReadException | TagException | InvalidAudioFrameException | ReadOnlyFileException e ) {
 			e.printStackTrace();
 			return null;
 		}

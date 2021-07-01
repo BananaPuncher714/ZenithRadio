@@ -290,13 +290,20 @@ public class MusicRotatingPlayer {
 		playlist.lock();
 		AudioRecord file = playlist.get( 0 );
 		playlist.unlock();
-		ShoutMetadata metadata;
-		if ( generator != null ) {
-			metadata = generator.getMetadataFor( file );
-		} else {
-			metadata = defGenerator.getMetadataFor( file );
+		
+		if ( file.getFile().exists() ) {
+			ShoutMetadata metadata;
+			if ( generator != null ) {
+				metadata = generator.getMetadataFor( file );
+			} else {
+				metadata = defGenerator.getMetadataFor( file );
+			}
+			updateMetadata( mount, metadata );
+			
+			if ( callback != null ) {
+				callback.onMusicPlayerUpdateEvent( file );
+			}
 		}
-		updateMetadata( mount, metadata );
 	}
 	
 	private void onMediaChanged( String newMrl ) {
@@ -308,12 +315,7 @@ public class MusicRotatingPlayer {
 		AudioRecord file = playlist.get( 0 );
 		playlist.unlock();
 
-		if ( file.getFile().exists() ) {
-			// Callback before updating the metadata
-			if ( callback != null ) {
-				callback.onMusicPlayerUpdateEvent( file );
-			}
-		} else {
+		if ( !file.getFile().exists() ) {
 			// The file doesn't exist, so skip it
 			System.out.println( "Missing file!! " + file.getFile().getAbsolutePath() );
 			playNext();

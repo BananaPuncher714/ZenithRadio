@@ -15,6 +15,7 @@ import com.aaaaahhhhhhh.zenith.radio.ZenithRadio;
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
 import com.aaaaahhhhhhh.zenith.radio.commands.*;
 
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.MessageBuilder;
@@ -200,20 +201,35 @@ public class DiscordClient extends RadioClient {
 						e.printStackTrace();
 					}
 					
-					MessageBuilder builder = new MessageBuilder();
-					builder.append( "**__Now playing__**\n" );
-					builder.append( "Title: " + record.getTitle() + "\n" );
-					builder.append( "Album: " + ( record.getAlbum().isEmpty() ? "Unknown" : record.getAlbum() ) + "\n" );
-					builder.append( "Artist: " + ( record.getArtist().isEmpty() ? "Unknown" : record.getArtist() ) + "\n" );
-					builder.append( "Track: " );
-					if ( !record.getDisc().isEmpty() ) {
-						builder.append( record.getDisc() );
-						builder.append( "." );
-					}
-					builder.append( record.getTrack() + "\n" );
-					builder.append( "Length: " + ZenithRadio.timeFormat( radio.getControlsApi().getCurrentLength() ) );
+					EmbedBuilder embed = new EmbedBuilder();
+					embed.setTitle( "Now playing", radio.getUrl() );
+					embed.setColor( 0x910000 );
 					
-					channel.sendMessage( builder.build() ).queue();
+					String album = record.getAlbum();
+					if ( !album.isEmpty() && !album.equalsIgnoreCase( "unknown" ) ) {
+						String baseUrl = String.format( "%s:%s/%s/",
+								radio.getImageServerProperties().getBaseUrl(),
+								radio.getImageServerProperties().getExternalPort(),
+								radio.getImageServerProperties().getServerPath()
+						);
+						embed.setThumbnail( baseUrl + album.hashCode() + ".png" );
+					}
+					
+					StringBuilder descBuilder = new StringBuilder();
+					descBuilder.append( "**Title**: " + record.getTitle() + "\n" );
+					descBuilder.append( "**Album**: " + ( record.getAlbum().isEmpty() ? "Unknown" : record.getAlbum() ) + "\n" );
+					descBuilder.append( "**Artist**: " + ( record.getArtist().isEmpty() ? "Unknown" : record.getArtist() ) + "\n" );
+					descBuilder.append( "**Track**: " );
+					if ( !record.getDisc().isEmpty() ) {
+						descBuilder.append( record.getDisc() );
+						descBuilder.append( "." );
+					}
+					descBuilder.append( record.getTrack() + "\n" );
+					descBuilder.append( "**Length**: " + ZenithRadio.timeFormat( radio.getControlsApi().getCurrentLength() ) );
+					
+					embed.setDescription( descBuilder.toString() );
+					
+					channel.sendMessage( embed.build() ).queue();
 				} );
 			}
 			

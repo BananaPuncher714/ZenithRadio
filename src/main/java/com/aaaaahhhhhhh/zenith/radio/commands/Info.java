@@ -3,6 +3,8 @@ package com.aaaaahhhhhhh.zenith.radio.commands;
 import com.aaaaahhhhhhh.zenith.radio.ZenithRadio;
 import com.aaaaahhhhhhh.zenith.radio.client.DiscordClient;
 import com.aaaaahhhhhhh.zenith.radio.file.AudioRecord;
+
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.entities.MessageChannel;
 
@@ -21,37 +23,54 @@ public class Info extends Command {
 
     public void runCommand(MessageChannel channel, boolean admin, String command, ZenithRadio radio){
             AudioRecord record = radio.getMediaApi().getPlaying();
-			MessageBuilder builder = new MessageBuilder();
-			builder.append( "**__Now playing__**\n" );
-			builder.append( "Title: " + record.getTitle() + "\n" );
-			builder.append( "Album: " + ( record.getAlbum().isEmpty() ? "Unknown" : record.getAlbum() ) + "\n" );
-			builder.append( "Artist: " + ( record.getArtist().isEmpty() ? "Unknown" : record.getArtist() ) + "\n" );
-			builder.append( "Track: " );
-			if ( !record.getDisc().isEmpty() ) {
-				builder.append( record.getDisc() );
-				builder.append( "." );
+            
+            EmbedBuilder embed = new EmbedBuilder();
+			embed.setTitle( "Info", radio.getUrl() );
+			embed.setColor( 0xce32ff );
+            
+			String album = record.getAlbum();
+			if ( !album.isEmpty() && !album.equalsIgnoreCase( "unknown" ) ) {
+				String baseUrl = String.format( "%s:%s/%s/",
+						radio.getImageServerProperties().getBaseUrl(),
+						radio.getImageServerProperties().getExternalPort(),
+						radio.getImageServerProperties().getServerPath()
+				);
+				embed.setImage( baseUrl + album.hashCode() + ".png" );
 			}
-			builder.append( record.getTrack() + "\n" );
+			
+			StringBuilder descBuilder = new StringBuilder();
+			descBuilder.append( "**Title**: " + record.getTitle() + "\n" );
+			descBuilder.append( "**Album**: " + ( record.getAlbum().isEmpty() ? "Unknown" : record.getAlbum() ) + "\n" );
+			descBuilder.append( "**Artist**: " + ( record.getArtist().isEmpty() ? "Unknown" : record.getArtist() ) + "\n" );
+			descBuilder.append( "**Track**: " );
+			if ( !record.getDisc().isEmpty() ) {
+				descBuilder.append( record.getDisc() );
+				descBuilder.append( "." );
+			}
+			descBuilder.append( record.getTrack() + "\n" );
+			descBuilder.append( "**Length**: " + ZenithRadio.timeFormat( radio.getControlsApi().getCurrentLength() ) + "\n" );
 
 			String prefix = radio.getMusicDirectory().getAbsolutePath();
 			String recordFile = record.getFile().getAbsolutePath();
-			builder.append( "File: `" );
+			descBuilder.append( "**File**: `" );
 			if ( recordFile.startsWith( prefix ) ) {
-				builder.append( recordFile.substring( prefix.length() ) );
+				descBuilder.append( recordFile.substring( prefix.length() ) );
 			} else {
-				builder.append( recordFile );
+				descBuilder.append( recordFile );
 			}
-			builder.append( "`\n" );
+			descBuilder.append( "`\n" );
 
 			long length = record.getFile().length();
 
-			builder.append( "Size: " + client.humanReadableSize( length ) + "\n" );
+			descBuilder.append( "**Size**: " + client.humanReadableSize( length ) + "\n" );
 
 			long time = radio.getControlsApi().getCurrentTime();
 			long totalTime = radio.getControlsApi().getCurrentLength();
-			builder.append( "Current time: " + ZenithRadio.timeFormat( time ) + "/" + ZenithRadio.timeFormat( totalTime ) );
+			descBuilder.append( "**Current time**: " + ZenithRadio.timeFormat( time ) + "/" + ZenithRadio.timeFormat( totalTime ) );
 
-			channel.sendMessage( builder.build() ).queue();
+			embed.setDescription( descBuilder.toString() );
+			
+			channel.sendMessage( embed.build() ).queue();
     }
 
     public Info(DiscordClient discordClient) {
