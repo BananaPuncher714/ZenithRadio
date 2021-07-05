@@ -102,7 +102,7 @@ public class AudioRecord extends FileRecord {
 				File parent = file.getParentFile();
 				for ( int i = 0; i < 2; i++ ) {
 					for ( File f : parent.listFiles() ) {
-						if ( f.getName().toLowerCase().matches( "^(folder|cover)\\.(png|jpg)$" ) ) {
+						if ( f.getName().toLowerCase().matches( "^(folder|cover)\\.(png|jpg|jpeg)$" ) ) {
 							image = ImageIO.read( f );
 						}
 					}

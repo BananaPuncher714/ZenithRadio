@@ -2,8 +2,13 @@ package com.aaaaahhhhhhh.zenith.radio;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +31,8 @@ import com.aaaaahhhhhhh.zenith.radio.media.DefaultMetadataGenerator;
 import com.aaaaahhhhhhh.zenith.radio.media.ImageMetadataGenerator;
 import com.aaaaahhhhhhh.zenith.radio.shout.IceMount;
 import com.aaaaahhhhhhh.zenith.radio.shout.MusicRotatingPlayer;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory;
 import uk.co.caprica.vlcj.support.eventmanager.TaskExecutor;
@@ -33,6 +40,7 @@ import uk.co.caprica.vlcj.support.eventmanager.TaskExecutor;
 public class ZenithRadio {
 	private static File BASE = new File( System.getProperty( "user.dir" ) );
 	private static final boolean VERBOSE = true;
+	private static Gson GSON = new Gson();
 	
 	static {
 		System.setProperty( "jna.encoding", "UTF8" );
@@ -91,6 +99,7 @@ public class ZenithRadio {
 	private MusicCache cache;
 	private ZenithRadioProperties properties;
 	private ImageServerProperties imageProperties;
+	private ExternalUpdateProperties externalProperties;
 	private PlaylistManager manager;
 	
 	private RadioMedia mediaManager;
@@ -212,14 +221,19 @@ public class ZenithRadio {
 		mediaManager = new RadioMedia( this );
 		
 		imageProperties = new ImageServerProperties()
-			.setEnabled( "true".equalsIgnoreCase( properties.getProperties().getProperty( "image-server-enabled" ) ) )
-			.setBaseUrl( properties.getProperties().getProperty( "image-server-url", "http://localhost" ) )
-			.setServerPath( properties.getProperties().getProperty( "image-server-path", "" ) )
-			.setSavePath( properties.getProperties().getProperty( "image-save-path", "" ) )
-			.setInternalPort( Integer.valueOf( properties.getProperties().getProperty( "image-server-internal-port", "0" ) ) )
-			.setExternalPort( Integer.valueOf( properties.getProperties().getProperty( "image-server-external-port", "0" ) ) );
+				.setEnabled( "true".equalsIgnoreCase( properties.getProperties().getProperty( "image-server-enabled" ) ) )
+				.setBaseUrl( properties.getProperties().getProperty( "image-server-url", "http://localhost" ) )
+				.setServerPath( properties.getProperties().getProperty( "image-server-path", "" ) )
+				.setSavePath( properties.getProperties().getProperty( "image-save-path", "" ) )
+				.setInternalPort( Integer.valueOf( properties.getProperties().getProperty( "image-server-internal-port", "0" ) ) )
+				.setExternalPort( Integer.valueOf( properties.getProperties().getProperty( "image-server-external-port", "0" ) ) );
 		
-		String imagePath = properties.getProperties().getProperty( "image-save-path" );
+		externalProperties = new ExternalUpdateProperties()
+				.setEnabled( "true".equalsIgnoreCase( properties.getProperties().getProperty( "external-update-enabled" ) ) )
+				.setUrl( properties.getProperties().getProperty( "external-update-url", "http://localhost" ) )
+				.setUserpass( properties.getProperties().getProperty( "external-update-keypass", "admin:hackme" ) );
+		
+		String imagePath = imageProperties.getSavePath();
 		if ( imagePath == null || imagePath.isEmpty() ) {
 			coverDirectory = new File( homeDirectory, "covers" );
 		} else {
@@ -301,6 +315,51 @@ public class ZenithRadio {
 	
 	private void playerCallback( AudioRecord file ) {
 		lock.lock();
+		// Update the things
+		if ( externalProperties.isEnabled() ) {
+			JsonObject json = new JsonObject();
+			String album = file.getAlbum();
+			json.addProperty( "mountpoint", "/" + mount.getMount() );
+			json.addProperty( "title", file.getTitle() );
+			json.addProperty( "album", album );
+			json.addProperty( "artist", file.getArtist() );
+			json.addProperty( "disc", file.getDisc() );
+			json.addProperty( "track", file.getTrack() );
+			if ( album != null && !album.equalsIgnoreCase( "unknown" ) && !album.isEmpty() ) {
+				String url = String.format( "%s:%s/%s/%d.png",
+						imageProperties.getBaseUrl(),
+						imageProperties.getExternalPort(),
+						imageProperties.getServerPath(),
+						album.hashCode()
+				);
+				json.addProperty( "cover_art", url );
+			}
+			json.addProperty( "start_time", System.currentTimeMillis() );
+			json.addProperty( "track_length", "/" + getControlsApi().getCurrentLength() );
+			
+			String jsonStr = GSON.toJson( json );
+			
+			try {
+				URL url = new URL( externalProperties.getUrl() );
+				URLConnection con = url.openConnection();
+
+				byte[] bytes = jsonStr.getBytes( StandardCharsets.UTF_8 );
+				
+				String encoded = Base64.getEncoder().encodeToString( externalProperties.getUserpass().getBytes( "UTF-8" ) );
+				con.setRequestProperty( "Authorization", "Basic " + encoded );
+				con.setRequestProperty( "Content-Type", "application/json; charset=utf-8" );
+				con.setRequestProperty( "Content-Length", String.valueOf( bytes.length ) );
+				
+				OutputStream stream = con.getOutputStream();
+				stream.write( bytes );
+				stream.flush();
+				stream.close();
+			} catch ( IOException e ) {
+				e.printStackTrace();
+			}
+			
+		}
+		
 		for ( RadioClient client : clients ) {
 			client.onMediaChange( this, file );
 		}

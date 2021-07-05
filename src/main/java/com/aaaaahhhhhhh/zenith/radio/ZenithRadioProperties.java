@@ -70,12 +70,16 @@ public class ZenithRadioProperties {
 		properties.setProperty( "icecast-bitrate", "320" );
 		properties.setProperty( "icecast-use-mp3", "true" );
 		
-		properties.setProperty( "image-server-enabled", "true" );
+		properties.setProperty( "image-server-enabled", "false" );
 		properties.setProperty( "image-server-url", "http://localhost" );
-		properties.setProperty( "image-server-internal-port", "48596" );
-		properties.setProperty( "image-server-external-port", "48596" );
+		properties.setProperty( "image-server-internal-port", "8001" );
+		properties.setProperty( "image-server-external-port", "8001" );
 		properties.setProperty( "image-server-path", "cover" );
 		properties.setProperty( "image-save-path", "" );
+		
+		properties.setProperty( "external-update-enabled", "false" );
+		properties.setProperty( "external-update-url", "http://localhost" );
+		properties.setProperty( "external-update-keypass", "admin:hackme" );
 	}
 	
 	private void load() {
