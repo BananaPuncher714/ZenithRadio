@@ -335,14 +335,15 @@ public class ZenithRadio {
 				json.addProperty( "cover_art", url );
 			}
 			json.addProperty( "start_time", System.currentTimeMillis() );
-			json.addProperty( "track_length", "/" + getControlsApi().getCurrentLength() );
+			json.addProperty( "track_length", getControlsApi().getCurrentLength() );
 			
 			String jsonStr = GSON.toJson( json );
 			
 			try {
 				URL url = new URL( externalProperties.getUrl() );
 				URLConnection con = url.openConnection();
-
+				con.setDoOutput( true );
+				
 				byte[] bytes = jsonStr.getBytes( StandardCharsets.UTF_8 );
 				
 				String encoded = Base64.getEncoder().encodeToString( externalProperties.getUserpass().getBytes( "UTF-8" ) );
@@ -354,6 +355,7 @@ public class ZenithRadio {
 				stream.write( bytes );
 				stream.flush();
 				stream.close();
+				con.getInputStream().close();
 			} catch ( IOException e ) {
 				e.printStackTrace();
 			}

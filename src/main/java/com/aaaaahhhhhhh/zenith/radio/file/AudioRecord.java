@@ -81,11 +81,11 @@ public class AudioRecord extends FileRecord {
 	}
 	
 	public BufferedImage getCoverArt() {
+		BufferedImage image = null;
 		try {
 			AudioFile audioFile = AudioFileIO.read( file );
 			Tag tag = audioFile.getTag();
 			
-			BufferedImage image = null;
 			// Try and fetch the image from the file
 			if ( tag != null ) {
 				Artwork art = tag.getFirstArtwork();
@@ -96,24 +96,27 @@ public class AudioRecord extends FileRecord {
 					}
 				}
 			}
-			
-			// Try and get a cover image from the parent directories
-			if ( image == null ) {
-				File parent = file.getParentFile();
-				for ( int i = 0; i < 2; i++ ) {
-					for ( File f : parent.listFiles() ) {
-						if ( f.getName().toLowerCase().matches( "^(folder|cover)\\.(png|jpg|jpeg)$" ) ) {
-							image = ImageIO.read( f );
-						}
-					}
-					parent = parent.getParentFile();
-				}
-			}
-			
-			return image;
 		} catch ( IOException | CannotReadException | TagException | InvalidAudioFrameException | ReadOnlyFileException e ) {
 			e.printStackTrace();
-			return null;
 		}
+			
+		// Try and get a cover image from the parent directories
+		if ( image == null ) {
+			File parent = file.getParentFile();
+			for ( int i = 0; i < 2; i++ ) {
+				for ( File f : parent.listFiles() ) {
+					if ( f.getName().toLowerCase().matches( "^(folder|cover)\\.(png|jpg|jpeg)$" ) ) {
+						try {
+							image = ImageIO.read( f );
+						} catch ( IOException e ) {
+							e.printStackTrace();
+						}
+					}
+				}
+				parent = parent.getParentFile();
+			}
+		}
+			
+		return image;
 	}
 }
