@@ -19,6 +19,7 @@ public class Shuffle extends Command{
 
     public void runCommand(MessageChannel channel, boolean admin, String command, ZenithRadio radio){
         channel.sendMessage( "Shuffling the current playlist..." ).queue();
+        // does NOT shuffle queue items only whatevers random ~ NOOAAH
         radio.getMediaApi().refill();
     }
 
